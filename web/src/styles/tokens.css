@@ -1,0 +1,304 @@
+/*
+ * Tallybox design tokens.
+ *
+ * 1. Raw palette (teal, amber, grey, semantic colors) lives in `@theme static`.
+ * 2. Semantic tokens (--tb-*) say what a color is FOR (surface, ink, primary...).
+ *    Components use only these, so dark mode later is one block of overrides.
+ * 3. `@theme inline` exposes the semantic tokens as Tailwind classes
+ *    (bg-surface, text-ink, border-line, bg-primary...).
+ *
+ * Contrast is checked by src/styles/tokens.test.ts (WCAG AA, 4.5:1 for text).
+ */
+
+@theme static {
+  /* Drop Tailwind's default colors and shadows so only Tallybox tokens exist. */
+  --color-*: initial;
+  --shadow-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Primary: deep teal. 600 is the brand color. */
+  --color-teal-50: #eef8f7;
+  --color-teal-100: #d5eeec;
+  --color-teal-200: #acddda;
+  --color-teal-300: #7ac6c2;
+  --color-teal-400: #45a9a6;
+  --color-teal-500: #1f8f8d;
+  --color-teal-600: #0e7c7b;
+  --color-teal-700: #0b6564;
+  --color-teal-800: #0a5150;
+  --color-teal-900: #083f3f;
+  --color-teal-950: #052a2a;
+
+  /* Accent: warm amber. 400 is the brand color. Graphics and badges only,
+     never small text on white. Use 700+ when amber must carry text. */
+  --color-amber-50: #fff8eb;
+  --color-amber-100: #feecc7;
+  --color-amber-200: #fdd98f;
+  --color-amber-300: #fac257;
+  --color-amber-400: #f5a623;
+  --color-amber-500: #db8a0b;
+  --color-amber-600: #b56d06;
+  --color-amber-700: #8f5308;
+  --color-amber-800: #6f410b;
+  --color-amber-900: #57340c;
+
+  /* Grey: neutral with a slight teal tint. 900 is the near-black ink. */
+  --color-grey-50: #f7f8f8;
+  --color-grey-100: #eef0f0;
+  --color-grey-200: #dee2e2;
+  --color-grey-300: #c5cbcb;
+  --color-grey-400: #7f8989;
+  --color-grey-500: #636d6d;
+  --color-grey-600: #4d5656;
+  --color-grey-700: #394141;
+  --color-grey-800: #262d2d;
+  --color-grey-900: #161b1b;
+  --color-grey-950: #0c1010;
+
+  /* Semantic */
+  --color-success-50: #ecf8f0;
+  --color-success-100: #d3eedc;
+  --color-success-600: #1b7f45;
+  --color-success-700: #166638;
+
+  --color-error-50: #fdf0ee;
+  --color-error-100: #fadbd7;
+  --color-error-600: #c4321f;
+  --color-error-700: #a1281a;
+
+  --color-info-50: #eef4fd;
+  --color-info-100: #d8e6fa;
+  --color-info-600: #1d5fbf;
+  --color-info-700: #184e9e;
+
+  /* Type: Inter is bundled with the app, no external font requests. */
+  --font-sans:
+    'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+
+  --text-title-lg: 1.5rem;
+  --text-title-lg--line-height: 2rem;
+  --text-title-lg--letter-spacing: -0.015em;
+  --text-title-lg--font-weight: 700;
+
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-weight: 600;
+
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.75rem;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 500;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+
+  /* Shape: 12px controls, 16px cards. */
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+
+  /* Soft elevation only. */
+  --shadow-soft: 0 1px 2px rgb(22 27 27 / 0.06), 0 1px 3px rgb(22 27 27 / 0.08);
+  --shadow-raised: 0 4px 16px rgb(22 27 27 / 0.1), 0 2px 4px rgb(22 27 27 / 0.06);
+
+  /* Motion: subtle and short. Reduced-motion users get none (see index.css). */
+  --animate-page-in: page-in 180ms ease-out both;
+  --animate-fade-in: fade-in 160ms ease-out both;
+  --animate-fade-out: fade-out 120ms ease-in both;
+  --animate-sheet-up: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-sheet-down: sheet-down 160ms ease-in both;
+  --animate-pop-in: pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-tally: tally 1.5s ease-in-out infinite both;
+  --animate-check-ring: check-ring 320ms ease-out both;
+  --animate-check-draw: check-draw 280ms 240ms ease-out both;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes sheet-down {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes tally {
+    0% {
+      stroke-dashoffset: 1;
+      opacity: 0.25;
+    }
+    30%,
+    70% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 0.25;
+    }
+  }
+  @keyframes check-ring {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes check-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
+/* Semantic tokens: light theme (the only theme at launch). */
+:root {
+  --tb-surface: var(--color-grey-50);
+  --tb-surface-raised: var(--color-white);
+  --tb-surface-sunken: var(--color-grey-100);
+  --tb-ink: var(--color-grey-900);
+  --tb-ink-muted: var(--color-grey-600);
+  --tb-ink-subtle: var(--color-grey-500);
+  --tb-line: var(--color-grey-200);
+  --tb-line-control: var(--color-grey-400);
+  --tb-primary: var(--color-teal-600);
+  --tb-primary-hover: var(--color-teal-700);
+  --tb-primary-pressed: var(--color-teal-800);
+  --tb-primary-soft: var(--color-teal-50);
+  --tb-on-primary: var(--color-white);
+  --tb-accent: var(--color-amber-400);
+  --tb-focus: var(--color-teal-600);
+  --tb-success: var(--color-success-700);
+  --tb-success-soft: var(--color-success-50);
+  --tb-warning: var(--color-amber-700);
+  --tb-warning-soft: var(--color-amber-50);
+  --tb-error: var(--color-error-600);
+  --tb-error-strong: var(--color-error-700);
+  --tb-error-soft: var(--color-error-50);
+  --tb-info: var(--color-info-600);
+  --tb-info-soft: var(--color-info-50);
+  --tb-scrim: rgb(12 16 16 / 0.5);
+}
+
+/*
+ * Dark theme: tokens are ready but nothing switches it on yet.
+ * To enable later, set <html data-theme="dark"> and re-check contrast.
+ */
+[data-theme='dark'] {
+  --tb-surface: var(--color-grey-950);
+  --tb-surface-raised: var(--color-grey-900);
+  --tb-surface-sunken: var(--color-black);
+  --tb-ink: var(--color-grey-50);
+  --tb-ink-muted: var(--color-grey-300);
+  --tb-ink-subtle: var(--color-grey-400);
+  --tb-line: var(--color-grey-700);
+  --tb-line-control: var(--color-grey-400);
+  --tb-primary: var(--color-teal-400);
+  --tb-primary-hover: var(--color-teal-300);
+  --tb-primary-pressed: var(--color-teal-200);
+  --tb-primary-soft: var(--color-teal-950);
+  --tb-on-primary: var(--color-grey-950);
+  --tb-accent: var(--color-amber-400);
+  --tb-focus: var(--color-teal-300);
+  --tb-success: var(--color-success-100);
+  --tb-success-soft: var(--color-teal-950);
+  --tb-warning: var(--color-amber-200);
+  --tb-warning-soft: var(--color-amber-900);
+  --tb-error: var(--color-error-100);
+  --tb-error-strong: var(--color-error-50);
+  --tb-error-soft: var(--color-grey-800);
+  --tb-info: var(--color-info-100);
+  --tb-info-soft: var(--color-grey-800);
+  --tb-scrim: rgb(0 0 0 / 0.65);
+}
+
+@theme inline {
+  --color-surface: var(--tb-surface);
+  --color-surface-raised: var(--tb-surface-raised);
+  --color-surface-sunken: var(--tb-surface-sunken);
+  --color-ink: var(--tb-ink);
+  --color-ink-muted: var(--tb-ink-muted);
+  --color-ink-subtle: var(--tb-ink-subtle);
+  --color-line: var(--tb-line);
+  --color-line-control: var(--tb-line-control);
+  --color-primary: var(--tb-primary);
+  --color-primary-hover: var(--tb-primary-hover);
+  --color-primary-pressed: var(--tb-primary-pressed);
+  --color-primary-soft: var(--tb-primary-soft);
+  --color-on-primary: var(--tb-on-primary);
+  --color-accent: var(--tb-accent);
+  --color-success: var(--tb-success);
+  --color-success-soft: var(--tb-success-soft);
+  --color-warning: var(--tb-warning);
+  --color-warning-soft: var(--tb-warning-soft);
+  --color-error: var(--tb-error);
+  --color-error-strong: var(--tb-error-strong);
+  --color-error-soft: var(--tb-error-soft);
+  --color-info: var(--tb-info);
+  --color-info-soft: var(--tb-info-soft);
+  --color-scrim: var(--tb-scrim);
+}
