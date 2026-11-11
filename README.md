@@ -7,7 +7,7 @@ Online inventory and sales for small shops, pharmacies and restaurants. A websit
 - **Free-plan limits and upgrade triggers:** [docs/free-plan-limits.md](docs/free-plan-limits.md)
 - **Billing seams:** [docs/billing-plan.md](docs/billing-plan.md)
 
-**Status:** Phase 0 (Foundation) built. No business features yet.
+**Status:** Phase 1 (Auth and onboarding) built: registration with activation codes, owner and staff sign-in, staff creation, suspension, and a minimal super-admin area. Items, orders and reports come next.
 
 ## Run it
 
@@ -18,25 +18,28 @@ npm install        # once
 npm run dev        # http://localhost:5173
 ```
 
-In development the welcome page has a dashed "Development preview" box. Use it to look at each role's layout and to open the design gallery at `/dev/gallery`. It is not part of the live app.
+Until `.env.local` points at a Supabase project, the welcome page shows a dashed "Development preview" box. Use it to look at each role's layout and to open the design gallery at `/dev/gallery`. It disappears once Supabase is configured, and it is never part of the live app.
 
 ## Commands
 
 Run all of these from the repo root.
 
-| Command                | What it does                                                     |
-| ---------------------- | ---------------------------------------------------------------- |
-| `npm run dev`          | Start the app with live reload                                   |
-| `npm run check`        | Everything CI checks: format, lint, typecheck, unit tests, build |
-| `npm run test`         | Unit and component tests                                         |
-| `npm run test:e2e`     | End-to-end tests against the real production build               |
-| `npm run build`        | Production build into `web/dist`                                 |
-| `npm run preview`      | Serve the production build locally                               |
-| `npm run format`       | Format every file                                                |
-| `npm run icons -w web` | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
-| `npm run db:test`      | Database tests (needs Docker, so normally CI runs them)          |
-| `npm run db:push`      | Apply new migrations to the linked Supabase project              |
-| `npm run db:types`     | Regenerate TypeScript types from the database                    |
+| Command                   | What it does                                                     |
+| ------------------------- | ---------------------------------------------------------------- |
+| `npm run dev`             | Start the app with live reload                                   |
+| `npm run check`           | Everything CI checks: format, lint, typecheck, unit tests, build |
+| `npm run test`            | Unit and component tests                                         |
+| `npm run test:e2e`        | End-to-end tests against the real production build               |
+| `npm run build`           | Production build into `web/dist`                                 |
+| `npm run preview`         | Serve the production build locally                               |
+| `npm run format`          | Format every file                                                |
+| `npm run icons -w web`    | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
+| `npm run db:test:local`   | Database tests in an in-memory Postgres (no Docker needed)       |
+| `npm run db:test`         | Database tests on a real Supabase stack (needs Docker, so CI)    |
+| `npm run functions:test`  | Edge Function tests (Deno, no network)                           |
+| `npm run functions:check` | Type-check the Edge Functions                                    |
+| `npm run db:push`         | Apply new migrations to the linked Supabase project              |
+| `npm run db:types`        | Regenerate TypeScript types from the database                    |
 
 First time running end-to-end tests: `npx -w web playwright install chromium`.
 
@@ -55,8 +58,8 @@ web/                 The React app
 supabase/
   migrations/        Every database change, as versioned SQL
   tests/             Database tests (pgTAP)
-  functions/         Edge Functions (from Phase 1)
-  scripts/           One-time scripts (super-admin setup, Phase 1)
+  functions/         Edge Functions. _shared/ holds the common frame and rules
+  scripts/           Super-admin setup, and the local database test runner
 docs/                The brief and supporting notes
 .github/workflows/   CI
 ```
@@ -73,18 +76,46 @@ Do these when you are ready. **Never paste a password, token or key into a chat.
    git remote add origin https://github.com/YOUR-USERNAME/tallybox.git
    git push -u origin main
    ```
-3. Open the repo's **Actions** tab and check the three CI jobs go green. The database job is the first real run of the database tests.
+3. Open the repo's **Actions** tab and check the four CI jobs go green. The database job is the first run of the database tests against a real Supabase stack.
 
-### 2. Supabase (needed from Phase 1)
+### 2. Supabase
+
+Do this for `tallybox-dev` first. Repeat for `tallybox-prod` only when you are ready to go live.
 
 1. Sign up at supabase.com and create two projects: `tallybox-dev` and `tallybox-prod`. Save each database password in a password manager.
 2. Copy `.env.example` to `.env.local` in the repo root. From the **dev** project's settings, fill in the project URL and the **publishable** key (`sb_publishable_...`). Never the secret key.
-3. Link the CLI to the dev project and apply the migrations:
+3. Link the CLI to the dev project, then apply the migrations and deploy the Edge Functions:
    ```bash
    npx supabase login
    npx supabase link --project-ref YOUR-DEV-PROJECT-REF
    npm run db:push
+   npx supabase functions deploy
    ```
+   The secret key that Edge Functions use is provided by Supabase automatically. You never copy it anywhere.
+4. Auth settings (dashboard > Authentication):
+   - **Sign In / Providers > Email:** turn off "Allow new users to sign up" (accounts are only ever created by the Edge Functions) and turn off "Confirm email" (v1 sends no email).
+   - **URL Configuration:** set the Site URL to your app address (`http://localhost:5173` while developing).
+5. Make yourself the super-admin: dashboard > Authentication > Users > **Add user** with your own email, ticking "Auto Confirm User". Then open SQL Editor, paste [supabase/scripts/make-super-admin.sql](supabase/scripts/make-super-admin.sql), put your email in it, and run it once. Sign in on the **Owner login** page.
+
+### 2b. Cloudflare Turnstile (bot check on the login and registration forms)
+
+1. Cloudflare dashboard > **Turnstile > Add widget**. Hostnames: `localhost` and your `*.pages.dev` address. Mode: Managed.
+2. Put the **site key** (public) in `.env.local` as `VITE_TURNSTILE_SITE_KEY`, and in Cloudflare Pages' environment variables.
+3. Put the **secret key** in two places, never in a file in the repo:
+   - Edge Functions: `npx supabase secrets set TURNSTILE_SECRET_KEY=...` (checks registration).
+   - Supabase dashboard > Authentication > **Attack Protection** > Enable CAPTCHA protection, provider Turnstile (checks sign-in).
+4. Tell the Edge Functions where the app lives, so other websites cannot call them:
+   `npx supabase secrets set APP_ORIGINS=http://localhost:5173,https://YOUR-PROJECT.pages.dev,https://*.YOUR-PROJECT.pages.dev`
+
+For local testing without a real widget, Cloudflare's test keys always pass: site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`. Never use them in production.
+
+### Test Phase 1 end to end (once, after steps 2 and 2b)
+
+1. `npm run dev`, sign in as super-admin, open **Codes**, generate a code for a second email address you own.
+2. Sign out, choose **Register your business**, and register with that email and code. You land on Owner login: sign in.
+3. On the dashboard, **Create a staff account**. Sign out, then sign in on **Staff login** with the business code, username and password.
+4. Sign in as super-admin in a second browser, suspend the business, then switch back to the staff tab: within a few seconds it shows the suspended screen. Reactivate, and staff can sign in again.
+5. Try the activation code again: it is refused as already used.
 
 ### 3. Cloudflare Pages (the first deploy)
 
@@ -95,7 +126,7 @@ Do these when you are ready. **Never paste a password, token or key into a chat.
    - Build output directory: `web/dist`
    - Root directory: leave empty
 3. Environment variables (Settings > Environment variables), for **Production** and **Preview**:
-   - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (production uses the prod project, preview uses the dev project). These can wait until Phase 1.
+   - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_TURNSTILE_SITE_KEY` (production uses the prod project, preview uses the dev project).
 4. Deploy. The app is then live at `https://YOUR-PROJECT.pages.dev`. Every push to `main` deploys to production, and every pull request gets its own preview URL.
 
 Deploys use Cloudflare's own GitHub connection, so no deploy secrets are stored in GitHub. The Node version comes from `.node-version`.
