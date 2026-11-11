@@ -1,0 +1,124 @@
+import { lazy } from 'react'
+import { Navigate, type RouteObject } from 'react-router'
+import { PhasePlaceholder } from '@/components/PhasePlaceholder'
+import { WelcomePage } from '@/features/auth/WelcomePage'
+import { PublicOnly, RequireRole } from './guards'
+import { PortalLayout } from './layouts/PortalLayout'
+import { PublicLayout } from './layouts/PublicLayout'
+import { RootLayout } from './layouts/RootLayout'
+import { NotFoundPage } from './pages/NotFoundPage'
+import { RouteErrorPage } from './pages/RouteErrorPage'
+
+/**
+ * Every screen in the app, in one place.
+ *
+ * Phase 0: the structure and the access rules are real, the screens behind them
+ * are placeholders. As each phase lands, swap a placeholder for the real page
+ * using `lazy(() => import(...))` so each screen's code downloads only when needed.
+ */
+
+// The design gallery is for development only. This import is removed from production builds.
+const devRoutes: RouteObject[] = import.meta.env.DEV
+  ? [
+      {
+        path: 'dev/gallery',
+        Component: lazy(() => import('@/features/dev/GalleryPage')),
+      },
+    ]
+  : []
+
+export const routes: RouteObject[] = [
+  {
+    element: <RootLayout />,
+    errorElement: <RouteErrorPage />,
+    children: [
+      // Public screens. Signed-in people are redirected to their own home.
+      {
+        element: <PublicOnly />,
+        children: [
+          {
+            element: <PublicLayout />,
+            children: [
+              { index: true, element: <WelcomePage /> },
+              { path: 'login/owner', element: <PhasePlaceholder title="Owner login" phase={1} /> },
+              { path: 'login/staff', element: <PhasePlaceholder title="Staff login" phase={1} /> },
+              {
+                path: 'register',
+                element: <PhasePlaceholder title="Register your business" phase={1} />,
+              },
+              {
+                path: 'forgot-password',
+                element: <PhasePlaceholder title="Forgot password" phase={1} />,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        element: <PublicLayout />,
+        children: [
+          {
+            path: 'suspended',
+            element: <PhasePlaceholder title="Business suspended" phase={1} />,
+          },
+          ...devRoutes,
+        ],
+      },
+
+      // Staff portal: takes orders only.
+      {
+        path: 'staff',
+        element: <RequireRole allow={['staff']} />,
+        children: [
+          {
+            element: <PortalLayout portal="staff" />,
+            children: [
+              { index: true, element: <Navigate to="new-order" replace /> },
+              { path: 'new-order', element: <PhasePlaceholder title="New order" phase={3} /> },
+              { path: 'orders', element: <PhasePlaceholder title="My orders" phase={3} /> },
+              { path: 'items', element: <PhasePlaceholder title="Items" phase={2} /> },
+              { path: 'profile', element: <PhasePlaceholder title="Profile" phase={5} /> },
+            ],
+          },
+        ],
+      },
+
+      // Owner portal: full control of one business.
+      {
+        path: 'owner',
+        element: <RequireRole allow={['owner']} />,
+        children: [
+          {
+            element: <PortalLayout portal="owner" />,
+            children: [
+              { index: true, element: <Navigate to="dashboard" replace /> },
+              { path: 'dashboard', element: <PhasePlaceholder title="Dashboard" phase={4} /> },
+              { path: 'orders', element: <PhasePlaceholder title="Orders" phase={3} /> },
+              { path: 'items', element: <PhasePlaceholder title="Items" phase={2} /> },
+              { path: 'reports', element: <PhasePlaceholder title="Reports" phase={4} /> },
+              { path: 'more', element: <PhasePlaceholder title="More" phase={5} /> },
+            ],
+          },
+        ],
+      },
+
+      // Super-admin area: hidden. Everyone else gets the normal "page not found".
+      {
+        path: 'admin',
+        element: <RequireRole allow={['super_admin']} hidden />,
+        children: [
+          {
+            element: <PortalLayout portal="admin" />,
+            children: [
+              { index: true, element: <Navigate to="businesses" replace /> },
+              { path: 'businesses', element: <PhasePlaceholder title="Businesses" phase={1} /> },
+              { path: 'codes', element: <PhasePlaceholder title="Activation codes" phase={1} /> },
+            ],
+          },
+        ],
+      },
+
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+]
