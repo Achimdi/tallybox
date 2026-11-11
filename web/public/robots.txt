@@ -1,0 +1,3 @@
+# Tallybox is a private business tool, not a public website.
+User-agent: *
+Disallow: /

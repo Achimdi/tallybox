@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0E7C7B" />
+    <meta name="description" content="Tallybox: stock and sales for small businesses." />
+    <meta name="robots" content="noindex" />
+    <meta name="apple-mobile-web-app-title" content="Tallybox" />
+    <link rel="icon" href="/brand/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon-180x180.png" />
+    <title>Tallybox</title>
+    <style>
+      /* Branded loading screen, shown until the app has started. */
+      .boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #0e7c7b;
+        color: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .boot svg {
+        width: 96px;
+        height: 96px;
+      }
+      .boot p {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .boot .mark {
+        animation: boot-pulse 1.2s ease-in-out infinite;
+      }
+      .boot .mark:nth-child(2) {
+        animation-delay: 0.12s;
+      }
+      .boot .mark:nth-child(3) {
+        animation-delay: 0.24s;
+      }
+      .boot .mark:nth-child(4) {
+        animation-delay: 0.36s;
+      }
+      @keyframes boot-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot .mark {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot" role="status" aria-label="Loading Tallybox">
+        <svg viewBox="96 132 320 280" fill="none" aria-hidden="true">
+          <path
+            d="M132 212v156a24 24 0 0 0 24 24h200a24 24 0 0 0 24-24V212"
+            stroke="#fff"
+            stroke-width="28"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <g stroke="#fff" stroke-width="22" stroke-linecap="round">
+            <path class="mark" d="M196 164v160" />
+            <path class="mark" d="M236 164v160" />
+            <path class="mark" d="M276 164v160" />
+            <path class="mark" d="M316 164v160" />
+          </g>
+          <path d="M160 300 352 188" stroke="#F5A623" stroke-width="24" stroke-linecap="round" />
+        </svg>
+        <p>Tallybox</p>
+      </div>
+    </div>
+    <noscript>Tallybox needs JavaScript. Please turn it on in your browser settings.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
