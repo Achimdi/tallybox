@@ -424,3 +424,13 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# --- Tallybox Edge Functions -------------------------------------------------
+# These two are public (the visitor is not signed in yet), so the platform's
+# JWT check is off for them. They are protected by Turnstile and rate limits.
+# Every other function keeps the default: a signed-in caller is required.
+[functions.register-business]
+verify_jwt = false
+
+[functions.check-business-code]
+verify_jwt = false

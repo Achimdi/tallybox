@@ -23,11 +23,14 @@
     "db:test": "supabase test db",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts",
-    "db:test:local": "node supabase/scripts/db-test-local.mjs"
+    "db:test:local": "node supabase/scripts/db-test-local.mjs",
+    "functions:check": "deno check --config supabase/functions/deno.local.json supabase/functions",
+    "functions:test": "deno test --config supabase/functions/deno.local.json --no-prompt supabase/functions"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",
     "@electric-sql/pglite-pgtap": "^0.0.17",
+    "deno": "^2.9.6",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "supabase": "^3.1.0"
