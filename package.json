@@ -1,0 +1,32 @@
+{
+  "name": "tallybox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tallybox: online inventory and sales for small businesses",
+  "workspaces": [
+    "web"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "preview": "npm run preview -w web",
+    "lint": "npm run lint -w web",
+    "typecheck": "npm run typecheck -w web",
+    "test": "npm run test -w web",
+    "test:e2e": "npm run test:e2e -w web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "db:test": "supabase test db",
+    "db:push": "supabase db push",
+    "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "supabase": "^3.1.0"
+  }
+}
