@@ -22,9 +22,12 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "db:test": "supabase test db",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts",
+    "db:test:local": "node supabase/scripts/db-test-local.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite-pgtap": "^0.0.17",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "supabase": "^3.1.0"
