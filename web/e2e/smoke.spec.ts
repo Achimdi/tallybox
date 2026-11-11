@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 /**
- * Phase 0 smoke tests against the production build. The full flow
+ * Smoke tests against the production build. The full flow
  * (register, add item, place order, void order) is added as those phases land.
  */
 

@@ -25,10 +25,11 @@ insert into public.profiles (id, business_id, role, username, display_name) valu
   ('aaaaaaaa-0000-0000-0000-0000000000b1', 'b0000000-0000-0000-0000-00000000000b', 'owner', null, 'Owner B'),
   ('aaaaaaaa-0000-0000-0000-0000000000b2', 'b0000000-0000-0000-0000-00000000000b', 'staff', 'staff1', 'Staff B1');
 
-insert into auth.sessions (user_id) values
-  ('aaaaaaaa-0000-0000-0000-0000000000a1'),
-  ('aaaaaaaa-0000-0000-0000-0000000000b1'),
-  ('aaaaaaaa-0000-0000-0000-0000000000b2');
+-- The real auth.sessions table has no default for id, so give one.
+insert into auth.sessions (id, user_id) values
+  (gen_random_uuid(), 'aaaaaaaa-0000-0000-0000-0000000000a1'),
+  (gen_random_uuid(), 'aaaaaaaa-0000-0000-0000-0000000000b1'),
+  (gen_random_uuid(), 'aaaaaaaa-0000-0000-0000-0000000000b2');
 
 -- ---------------------------------------------------------------------------
 -- Not signed in
