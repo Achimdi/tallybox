@@ -19,6 +19,7 @@ describe('parseEnv', () => {
       supabaseUrl: 'https://abc.supabase.co',
       supabasePublishableKey: 'sb_publishable_123',
       turnstileSiteKey: '0x4AAA',
+      staffEmailDomain: 'tallybox.invalid',
     })
   })
 
@@ -27,6 +28,7 @@ describe('parseEnv', () => {
       supabaseUrl: undefined,
       supabasePublishableKey: undefined,
       turnstileSiteKey: undefined,
+      staffEmailDomain: 'tallybox.invalid',
     })
   })
 

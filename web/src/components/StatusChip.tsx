@@ -9,7 +9,23 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-export type ChipStatus = 'completed' | 'voided' | 'held' | 'in_stock' | 'low_stock' | 'out_of_stock'
+export type ChipStatus =
+  // Orders
+  | 'completed'
+  | 'voided'
+  | 'held'
+  // Stock
+  | 'in_stock'
+  | 'low_stock'
+  | 'out_of_stock'
+  // Businesses and accounts
+  | 'active'
+  | 'suspended'
+  // Activation codes
+  | 'unused'
+  | 'used'
+  | 'revoked'
+  | 'expired'
 
 interface ChipStyle {
   label: string
@@ -17,22 +33,25 @@ interface ChipStyle {
   className: string
 }
 
+const GOOD = 'bg-success-soft text-success'
+const BAD = 'bg-error-soft text-error-strong'
+const WAITING = 'bg-info-soft text-info'
+const CAUTION = 'bg-warning-soft text-warning'
+
 // Every status has a color AND an icon AND a word, never color alone.
 const STYLES: Record<ChipStatus, ChipStyle> = {
-  completed: { label: 'Completed', icon: CircleCheck, className: 'bg-success-soft text-success' },
-  voided: { label: 'Voided', icon: Ban, className: 'bg-error-soft text-error-strong' },
-  held: { label: 'Held', icon: Clock, className: 'bg-info-soft text-info' },
-  in_stock: { label: 'In stock', icon: Check, className: 'bg-success-soft text-success' },
-  low_stock: {
-    label: 'Low stock',
-    icon: TriangleExclamationPoint,
-    className: 'bg-warning-soft text-warning',
-  },
-  out_of_stock: {
-    label: 'Out of stock',
-    icon: PackageX,
-    className: 'bg-error-soft text-error-strong',
-  },
+  completed: { label: 'Completed', icon: CircleCheck, className: GOOD },
+  voided: { label: 'Voided', icon: Ban, className: BAD },
+  held: { label: 'Held', icon: Clock, className: WAITING },
+  in_stock: { label: 'In stock', icon: Check, className: GOOD },
+  low_stock: { label: 'Low stock', icon: TriangleExclamationPoint, className: CAUTION },
+  out_of_stock: { label: 'Out of stock', icon: PackageX, className: BAD },
+  active: { label: 'Active', icon: Check, className: GOOD },
+  suspended: { label: 'Suspended', icon: Ban, className: BAD },
+  unused: { label: 'Unused', icon: Clock, className: WAITING },
+  used: { label: 'Used', icon: CircleCheck, className: GOOD },
+  revoked: { label: 'Revoked', icon: Ban, className: BAD },
+  expired: { label: 'Expired', icon: TriangleExclamationPoint, className: CAUTION },
 }
 
 interface StatusChipProps {

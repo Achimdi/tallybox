@@ -77,7 +77,11 @@ export default defineConfig({
   // One .env.local at the repo root serves the whole project.
   envDir: '..',
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Rules shared with the Edge Functions (plain TypeScript, no imports).
+      '@shared': fileURLToPath(new URL('../supabase/functions/_shared', import.meta.url)),
+    },
   },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -134,6 +138,13 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     restoreMocks: true,
+    // Tests never use your real project settings, even if .env.local exists.
+    env: {
+      VITE_SUPABASE_URL: '',
+      VITE_SUPABASE_PUBLISHABLE_KEY: '',
+      VITE_TURNSTILE_SITE_KEY: '',
+      VITE_STAFF_EMAIL_DOMAIN: '',
+    },
     alias: {
       // The real module only exists inside a Vite build.
       'virtual:pwa-register/react': fileURLToPath(

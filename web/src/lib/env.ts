@@ -1,3 +1,4 @@
+import { DEFAULT_STAFF_EMAIL_DOMAIN } from '@shared/rules'
 import { z } from 'zod'
 
 /**
@@ -17,12 +18,15 @@ const envSchema = z.object({
   VITE_SUPABASE_URL: optionalText.pipe(z.url({ protocol: /^https?$/ }).optional()),
   VITE_SUPABASE_PUBLISHABLE_KEY: optionalText,
   VITE_TURNSTILE_SITE_KEY: optionalText,
+  VITE_STAFF_EMAIL_DOMAIN: optionalText,
 })
 
 export interface AppEnv {
   supabaseUrl: string | undefined
   supabasePublishableKey: string | undefined
   turnstileSiteKey: string | undefined
+  /** Domain for made-up staff sign-in addresses. Must match the Edge Functions. */
+  staffEmailDomain: string
 }
 
 export function parseEnv(raw: Record<string, unknown>): AppEnv {
@@ -32,12 +36,14 @@ export function parseEnv(raw: Record<string, unknown>): AppEnv {
       supabaseUrl: undefined,
       supabasePublishableKey: undefined,
       turnstileSiteKey: undefined,
+      staffEmailDomain: DEFAULT_STAFF_EMAIL_DOMAIN,
     }
   }
   return {
     supabaseUrl: result.data.VITE_SUPABASE_URL,
     supabasePublishableKey: result.data.VITE_SUPABASE_PUBLISHABLE_KEY,
     turnstileSiteKey: result.data.VITE_TURNSTILE_SITE_KEY,
+    staffEmailDomain: result.data.VITE_STAFF_EMAIL_DOMAIN ?? DEFAULT_STAFF_EMAIL_DOMAIN,
   }
 }
 

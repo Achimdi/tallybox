@@ -21,12 +21,14 @@ interface RequireRoleProps {
 }
 
 export function RequireRole({ allow, hidden = false }: RequireRoleProps) {
-  const { session } = useSession()
+  const { session, blocked } = useSession()
 
   if (session.status === 'loading') return <TallyLoader fullPage />
 
   if (session.status === 'signed_out') {
-    return hidden ? <NotFoundPage /> : <Navigate to="/" replace />
+    if (hidden) return <NotFoundPage />
+    // Signed out because the business was suspended or the account turned off.
+    return <Navigate to={blocked ? '/suspended' : '/'} replace />
   }
 
   if (!allow.includes(session.user.role)) {
@@ -38,11 +40,12 @@ export function RequireRole({ allow, hidden = false }: RequireRoleProps) {
 
 /** Welcome, login and registration: signed-in people are sent to their own home. */
 export function PublicOnly() {
-  const { session } = useSession()
+  const { session, blocked } = useSession()
 
   if (session.status === 'loading') return <TallyLoader fullPage />
   if (session.status === 'signed_in') {
     return <Navigate to={homePathFor(session.user.role)} replace />
   }
+  if (blocked) return <Navigate to="/suspended" replace />
   return <Outlet />
 }

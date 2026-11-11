@@ -12,10 +12,25 @@ import { RouteErrorPage } from './pages/RouteErrorPage'
 /**
  * Every screen in the app, in one place.
  *
- * Phase 0: the structure and the access rules are real, the screens behind them
- * are placeholders. As each phase lands, swap a placeholder for the real page
- * using `lazy(() => import(...))` so each screen's code downloads only when needed.
+ * Real pages are loaded with `lazy(() => import(...))`, so each screen's code
+ * downloads only when someone opens it. Screens that a later phase delivers
+ * are placeholders for now: the structure and access rules around them are real.
  */
+
+// Public
+const OwnerLoginPage = lazy(() => import('@/features/auth/OwnerLoginPage'))
+const StaffLoginPage = lazy(() => import('@/features/auth/StaffLoginPage'))
+const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
+const SuspendedPage = lazy(() => import('@/features/auth/SuspendedPage'))
+
+// Owner
+const OwnerHomePage = lazy(() => import('@/features/business/OwnerHomePage'))
+const CreateStaffPage = lazy(() => import('@/features/staff/CreateStaffPage'))
+
+// Super-admin. Only downloaded after the guard has let the super-admin in.
+const AdminBusinessesPage = lazy(() => import('@/features/admin/AdminBusinessesPage'))
+const AdminCodesPage = lazy(() => import('@/features/admin/AdminCodesPage'))
 
 // The design gallery is for development only. This import is removed from production builds.
 const devRoutes: RouteObject[] = import.meta.env.DEV
@@ -40,29 +55,17 @@ export const routes: RouteObject[] = [
             element: <PublicLayout />,
             children: [
               { index: true, element: <WelcomePage /> },
-              { path: 'login/owner', element: <PhasePlaceholder title="Owner login" phase={1} /> },
-              { path: 'login/staff', element: <PhasePlaceholder title="Staff login" phase={1} /> },
-              {
-                path: 'register',
-                element: <PhasePlaceholder title="Register your business" phase={1} />,
-              },
-              {
-                path: 'forgot-password',
-                element: <PhasePlaceholder title="Forgot password" phase={1} />,
-              },
+              { path: 'login/owner', Component: OwnerLoginPage },
+              { path: 'login/staff', Component: StaffLoginPage },
+              { path: 'register', Component: RegisterPage },
+              { path: 'forgot-password', Component: ForgotPasswordPage },
             ],
           },
         ],
       },
       {
         element: <PublicLayout />,
-        children: [
-          {
-            path: 'suspended',
-            element: <PhasePlaceholder title="Business suspended" phase={1} />,
-          },
-          ...devRoutes,
-        ],
+        children: [{ path: 'suspended', Component: SuspendedPage }, ...devRoutes],
       },
 
       // Staff portal: takes orders only.
@@ -92,7 +95,8 @@ export const routes: RouteObject[] = [
             element: <PortalLayout portal="owner" />,
             children: [
               { index: true, element: <Navigate to="dashboard" replace /> },
-              { path: 'dashboard', element: <PhasePlaceholder title="Dashboard" phase={4} /> },
+              { path: 'dashboard', Component: OwnerHomePage },
+              { path: 'staff/new', Component: CreateStaffPage },
               { path: 'orders', element: <PhasePlaceholder title="Orders" phase={3} /> },
               { path: 'items', element: <PhasePlaceholder title="Items" phase={2} /> },
               { path: 'reports', element: <PhasePlaceholder title="Reports" phase={4} /> },
@@ -111,8 +115,8 @@ export const routes: RouteObject[] = [
             element: <PortalLayout portal="admin" />,
             children: [
               { index: true, element: <Navigate to="businesses" replace /> },
-              { path: 'businesses', element: <PhasePlaceholder title="Businesses" phase={1} /> },
-              { path: 'codes', element: <PhasePlaceholder title="Activation codes" phase={1} /> },
+              { path: 'businesses', Component: AdminBusinessesPage },
+              { path: 'codes', Component: AdminCodesPage },
             ],
           },
         ],
