@@ -16,9 +16,12 @@ export function createSupabaseApi(): TallyboxApi {
   return {
     source: 'supabase',
     requiresCaptcha: true,
-    auth: { signIn: notYet, getSession: notYet, signOut: notYet },
+    auth: { signIn: notYet, getSession: notYet, signOut: notYet, changePassword: notYet },
     registration: { isBusinessCodeAvailable: notYet, registerBusiness: notYet },
     staff: { list: notYet, create: notYet },
+    items: { list: notYet },
+    orders: { create: notYet, listMine: notYet, get: notYet },
+    held: { list: notYet, save: notYet, discard: notYet },
     admin: {
       listBusinesses: notYet,
       getBusiness: notYet,

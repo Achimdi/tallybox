@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '@/lib/errors'
 import { createTestApi, DEMO } from '@/test/mockApi'
 import { describeAccountsContract } from '../contract/accounts.contract'
+import { describeOrdersContract } from '../contract/orders.contract'
 import { createMockApi } from './mockApi'
-import { memoryStorage, STORAGE_KEY } from './store'
+import { memoryStorage, STORAGE_KEY, type MockDb } from './store'
 
 // The shared contract: the Supabase implementation must pass the same tests in Phase 2.
 describeAccountsContract('mock', async () => {
@@ -151,5 +152,91 @@ describe('mock data layer: the demo itself', () => {
       isOnline: () => true,
     })
     expect((await api.auth.signIn(DEMO.owner)).kind).toBe('user')
+  })
+})
+
+describeOrdersContract('mock', async () => {
+  const test = createTestApi()
+  return Promise.resolve({
+    api: test.api,
+    otherBrowser: test.otherBrowser,
+    owner: DEMO.owner,
+    staffA: DEMO.staff,
+    staffB: { ...DEMO.staff, username: 'bola' },
+  })
+})
+
+describe('mock data layer: the demo shop and its stock ledger', () => {
+  /** Reads the stored demo data, the way a database test would read tables. */
+  function stored(test: ReturnType<typeof createTestApi>): MockDb {
+    return JSON.parse(test.storage.get(STORAGE_KEY) ?? '{}') as MockDb
+  }
+
+  function expectLedgerMatchesStock(db: MockDb) {
+    for (const item of db.items) {
+      const moves = db.stockMovements.filter((move) => move.itemId === item.id)
+      expect(
+        moves.reduce((sum, move) => sum + move.delta, 0),
+        item.name,
+      ).toBe(item.quantity)
+      for (const move of moves) {
+        expect(move.quantityAfter, item.name).toBe(move.quantityBefore + move.delta)
+        expect(move.quantityAfter, item.name).toBeGreaterThanOrEqual(0)
+      }
+    }
+  }
+
+  it('seeds a realistic shop', async () => {
+    const test = createTestApi()
+    await test.api.auth.signIn(DEMO.owner)
+    const items = await test.api.items.list()
+    expect(items).toHaveLength(40)
+    expect(items.filter((item) => !item.active)).toHaveLength(1)
+    expect(
+      items.filter((item) => item.active && item.quantity === 0).length,
+    ).toBeGreaterThanOrEqual(2)
+    expect(
+      items.filter((item) => item.quantity > 0 && item.quantity <= item.lowStockLevel).length,
+    ).toBeGreaterThanOrEqual(3)
+    expect(new Set(items.map((item) => item.category)).size).toBe(6)
+
+    const db = stored(test)
+    expect(db.orders.length).toBeGreaterThan(30)
+    expect(db.orders.filter((order) => order.status === 'voided')).toHaveLength(1)
+    expect(db.heldOrders).toHaveLength(1)
+    expect(new Set(db.orders.map((order) => order.paymentMethod))).toEqual(
+      new Set(['cash', 'bank_transfer', 'card']),
+    )
+  })
+
+  it('gives demo staff some orders today and a held order', async () => {
+    const test = createTestApi()
+    await test.api.auth.signIn(DEMO.staff)
+    expect((await test.api.orders.listMine()).length).toBeGreaterThan(0)
+    expect(await test.api.held.list()).toEqual([
+      expect.objectContaining({ customerName: 'Mrs Bello', staffName: 'Ada Eze' }),
+    ])
+  })
+
+  it("keeps every item's quantity equal to the sum of its ledger, before and after selling", async () => {
+    const test = createTestApi()
+    await test.api.auth.signIn(DEMO.staff)
+    await test.api.items.list()
+    expectLedgerMatchesStock(stored(test))
+
+    const items = (await test.api.items.list()).filter((item) => item.quantity >= 5)
+    for (const item of items.slice(0, 5)) {
+      await test.api.orders.create({
+        clientOrderId: crypto.randomUUID(),
+        lines: [{ itemId: item.id, quantity: 2 }],
+        paymentMethod: 'cash',
+        paymentReference: '',
+        paymentConfirmed: true,
+        customerName: '',
+        customerPhone: '',
+        note: '',
+      })
+    }
+    expectLedgerMatchesStock(stored(test))
   })
 })

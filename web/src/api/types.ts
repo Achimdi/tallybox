@@ -18,6 +18,7 @@
 
 import type { AccessFilter, BusinessStatus } from '@/domain/access'
 import type { CodeStatus } from '@/domain/activationCodes'
+import type { CartLine, PaymentMethod } from '@/domain/orders'
 
 // ---------------------------------------------------------------------------
 // Sessions
@@ -82,6 +83,8 @@ export interface AuthApi {
   /** Who is signed in right now, re-checked live. Null when nobody is. */
   getSession(): Promise<SessionResult | null>
   signOut(): Promise<void>
+  /** For the signed-in person. Throws wrong_password or weak_password. */
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +108,142 @@ export interface RegistrationApi {
   isBusinessCodeAvailable(businessCode: string): Promise<boolean>
   /** Creates the business and its owner. Throws a field-specific code when refused. */
   registerBusiness(input: RegistrationInput): Promise<{ businessCode: string }>
+}
+
+// ---------------------------------------------------------------------------
+// Items (read by staff and owners; cost prices are owner-only and come in 1C)
+// ---------------------------------------------------------------------------
+
+export interface Item {
+  id: string
+  name: string
+  category: string | null
+  unit: string | null
+  /** Selling price in minor units. */
+  price: number
+  /** Whole units on hand. */
+  quantity: number
+  lowStockLevel: number
+  /** False means archived: not sold, hidden from staff. */
+  active: boolean
+}
+
+export interface ItemsApi {
+  /** Staff see items on sale. Owners also see archived items. Sorted by name. */
+  list(): Promise<Item[]>
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+export type OrderStatus = 'completed' | 'voided'
+
+export interface OrderLine {
+  itemId: string
+  /** Snapshot when the order was confirmed. */
+  name: string
+  unitPrice: number
+  quantity: number
+  lineTotal: number
+}
+
+export interface Order {
+  id: string
+  orderNumber: number
+  status: OrderStatus
+  staffId: string
+  staffName: string
+  /** Minor units. */
+  total: number
+  paymentMethod: PaymentMethod
+  paymentReference: string | null
+  paymentConfirmedByName: string
+  paymentConfirmedAt: string
+  customerName: string | null
+  customerPhone: string | null
+  note: string | null
+  /** The business's own calendar day, "YYYY-MM-DD". */
+  dateKey: string
+  createdAt: string
+  voidedAt: string | null
+  voidedByName: string | null
+  voidReason: string | null
+  lines: OrderLine[]
+}
+
+export interface CreateOrderInput {
+  /** Chosen by the app once per cart: confirming twice with it never makes two orders. */
+  clientOrderId: string
+  lines: CartLine[]
+  paymentMethod: PaymentMethod
+  paymentReference: string
+  /** Must be true: ticked only after checking the money has really arrived. */
+  paymentConfirmed: boolean
+  customerName: string
+  customerPhone: string
+  note: string
+  /** The held order this came from, which is removed in the same step. */
+  heldOrderId?: string | null
+}
+
+export interface OrdersApi {
+  /**
+   * Confirms an order: checks payment was confirmed and stock for every line,
+   * takes names and prices from the item list, reduces stock. Throws
+   * payment_not_confirmed, insufficient_stock (details.problems) or
+   * item_unavailable (details.names).
+   */
+  create(input: CreateOrderInput): Promise<Order>
+  /** Today's orders taken by the signed-in person, newest first. */
+  listMine(): Promise<Order[]>
+  /** Staff may open only their own orders from today. */
+  get(orderId: string): Promise<Order>
+}
+
+// ---------------------------------------------------------------------------
+// Held orders: a cart saved while waiting for payment. Takes no stock.
+// ---------------------------------------------------------------------------
+
+export interface HeldOrderLine {
+  itemId: string
+  quantity: number
+  /** Current details of the item, for display. A hold stores only item and quantity. */
+  name: string
+  unitPrice: number
+  available: number
+  active: boolean
+}
+
+export interface HeldOrder {
+  id: string
+  staffId: string
+  staffName: string
+  customerName: string | null
+  customerPhone: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  lines: HeldOrderLine[]
+  /** At today's prices. */
+  total: number
+}
+
+export interface SaveHeldOrderInput {
+  /** Update this hold instead of creating a new one. */
+  heldOrderId?: string | null
+  lines: CartLine[]
+  customerName: string
+  customerPhone: string
+  note: string
+}
+
+export interface HeldOrdersApi {
+  /** Staff see their own holds. Owners see everyone's. Newest first. */
+  list(): Promise<HeldOrder[]>
+  save(input: SaveHeldOrderInput): Promise<HeldOrder>
+  /** Staff may discard their own holds; owners any. */
+  discard(heldOrderId: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +398,9 @@ export interface TallyboxApi {
   auth: AuthApi
   registration: RegistrationApi
   staff: StaffApi
+  items: ItemsApi
+  orders: OrdersApi
+  held: HeldOrdersApi
   admin: AdminApi
   /** Present only for the mock. */
   demo: DemoApi | null

@@ -1,5 +1,6 @@
 import type { BusinessStatus } from '@/domain/access'
 import type { StoredCodeStatus } from '@/domain/activationCodes'
+import type { PaymentMethod } from '@/domain/orders'
 import type { RateCounters } from '@/domain/rateLimit'
 
 /**
@@ -11,7 +12,8 @@ import type { RateCounters } from '@/domain/rateLimit'
  */
 
 export const STORAGE_KEY = 'tb.demo.v1'
-const VERSION = 1
+// Bump when the shape changes: older demo data in a browser is then replaced by the new seed.
+const VERSION = 2
 
 export interface MockBusiness {
   id: string
@@ -30,6 +32,8 @@ export interface MockBusiness {
   createdAt: string
   suspendedAt: string | null
   suspendedReason: string | null
+  /** The last order number used. Each new order takes the next one. */
+  orderCounter: number
 }
 
 export interface MockUser {
@@ -65,14 +69,110 @@ export interface MockActivationCode {
   createdBy: string | null
 }
 
+export interface MockItem {
+  id: string
+  businessId: string
+  name: string
+  category: string | null
+  unit: string | null
+  price: number
+  quantity: number
+  lowStockLevel: number
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Kept apart from items: only owners may ever read cost prices. */
+export interface MockItemCost {
+  itemId: string
+  businessId: string
+  costPrice: number
+}
+
+export type MovementType = 'opening' | 'sale' | 'void' | 'restock' | 'adjustment'
+
+/** The stock ledger. Append-only: rows are never changed or removed. */
+export interface MockStockMovement {
+  id: string
+  businessId: string
+  itemId: string
+  itemName: string
+  type: MovementType
+  delta: number
+  quantityBefore: number
+  quantityAfter: number
+  reason: string | null
+  note: string | null
+  orderId: string | null
+  restockId: string | null
+  supplier: string | null
+  unitCost: number | null
+  createdBy: string | null
+  createdByName: string
+  dateKey: string
+  createdAt: string
+}
+
+export interface MockOrderLine {
+  itemId: string
+  name: string
+  unitPrice: number
+  quantity: number
+  lineTotal: number
+}
+
+export interface MockOrder {
+  id: string
+  businessId: string
+  orderNumber: number
+  clientOrderId: string
+  staffId: string
+  staffName: string
+  total: number
+  paymentMethod: PaymentMethod
+  paymentReference: string | null
+  paymentConfirmedBy: string
+  paymentConfirmedByName: string
+  paymentConfirmedAt: string
+  customerName: string | null
+  customerPhone: string | null
+  note: string | null
+  status: 'completed' | 'voided'
+  dateKey: string
+  createdAt: string
+  voidedAt: string | null
+  voidedBy: string | null
+  voidedByName: string | null
+  voidReason: string | null
+  lines: MockOrderLine[]
+}
+
+/** A hold stores only items and quantities: prices and stock are checked on confirming. */
+export interface MockHeldOrder {
+  id: string
+  businessId: string
+  staffId: string
+  staffName: string
+  customerName: string | null
+  customerPhone: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  lines: { itemId: string; quantity: number }[]
+}
+
 export interface MockDb {
   version: typeof VERSION
   businesses: MockBusiness[]
   users: MockUser[]
   activationCodes: MockActivationCode[]
+  items: MockItem[]
+  itemCosts: MockItemCost[]
+  stockMovements: MockStockMovement[]
+  orders: MockOrder[]
+  heldOrders: MockHeldOrder[]
   rateLimits: RateCounters
-  /** Who is signed in in this browser. */
-  sessionUserId: string | null
 }
 
 export interface KeyValueStorage {

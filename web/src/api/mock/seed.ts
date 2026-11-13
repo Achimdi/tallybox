@@ -2,6 +2,7 @@ import { DAY_MS } from '@/domain/access'
 import { hashActivationCode } from '@/domain/activationCodes'
 import type { DemoAccount } from '../types'
 import { hashPassword } from './passwords'
+import { createSalesSeed } from './seedSales'
 import {
   MOCK_DB_VERSION,
   type MockActivationCode,
@@ -14,7 +15,7 @@ import {
  * The demo's starting data. Every name, email and number here is made up.
  * Dates are relative to "now", so the demo always looks current.
  *
- * Items, stock movements and orders are added in steps 1B and 1C.
+ * Sunrise Pharmacy has the full catalogue and a week of trading (seedSales.ts).
  */
 
 /** One password for every demo account. Shown on the login pages in demo mode. */
@@ -102,6 +103,7 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
     createdAt: at(-60),
     suspendedAt: null,
     suspendedReason: null,
+    orderCounter: 0,
     ...fields,
   })
 
@@ -293,12 +295,32 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
     }),
   ])
 
+  const sunrise = businesses.find((candidate) => candidate.id === DEMO_IDS.sunrise)!
+  const sales = createSalesSeed({
+    now,
+    businessId: sunrise.id,
+    timezone: sunrise.timezone,
+    ownerId: DEMO_IDS.sunriseOwner,
+    ownerName: 'Amaka Okoro',
+    staff: [
+      { id: DEMO_IDS.ada, name: 'Ada Eze', weight: 3 },
+      { id: DEMO_IDS.bola, name: 'Bola Ade', weight: 2 },
+      { id: DEMO_IDS.sunriseOwner, name: 'Amaka Okoro', weight: 1 },
+    ],
+    heldBy: { id: DEMO_IDS.ada, name: 'Ada Eze' },
+  })
+  sunrise.orderCounter = sales.orderCounter
+
   return {
     version: MOCK_DB_VERSION,
     businesses,
     users,
     activationCodes,
+    items: sales.items,
+    itemCosts: sales.itemCosts,
+    stockMovements: sales.stockMovements,
+    orders: sales.orders,
+    heldOrders: sales.heldOrders,
     rateLimits: {},
-    sessionUserId: null,
   }
 }

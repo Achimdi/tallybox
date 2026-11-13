@@ -101,6 +101,18 @@ const USER_MESSAGES = {
     title: 'That email already has an account',
     description: 'Sign in instead, or use a different email.',
   },
+  payment_not_confirmed: {
+    title: 'Payment not confirmed',
+    description: 'Check the money has arrived, then tick "Payment received".',
+  },
+  item_unavailable: {
+    title: 'An item is no longer sold',
+    description: 'Remove it from the cart, then try again.',
+  },
+  wrong_password: {
+    title: "Your current password isn't right",
+    description: 'Check it and try again.',
+  },
   insufficient_stock: {
     title: 'Not enough stock',
     description: 'Lower the quantity or remove the item, then try again.',

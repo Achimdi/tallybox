@@ -25,7 +25,14 @@ import {
   PASSWORD_MAX,
   PASSWORD_MIN,
 } from '@/domain/rules'
-import { isValidTimeZone } from '@/lib/dates'
+import {
+  checkOrder,
+  isPaymentMethod,
+  normalizeCart,
+  ORDER_LIMITS,
+  type CartLine,
+} from '@/domain/orders'
+import { dateKey, isValidTimeZone } from '@/lib/dates'
 import { deviceId as browserDeviceId } from '@/lib/device'
 import { AppError, type AppErrorCode } from '@/lib/errors'
 import type {
@@ -36,6 +43,9 @@ import type {
   SessionUser,
   StaffMember,
   TallyboxApi,
+  HeldOrder,
+  Item,
+  Order,
 } from '../types'
 import { hashPassword, newSalt, passwordMatches } from './passwords'
 import { createSeed, DEMO_ACCOUNTS } from './seed'
@@ -45,6 +55,9 @@ import {
   type KeyValueStorage,
   type MockBusiness,
   type MockDb,
+  type MockHeldOrder,
+  type MockItem,
+  type MockOrder,
   type MockUser,
 } from './store'
 
@@ -297,6 +310,88 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
     return result.allowed
   }
 
+  const todayKey = (business: MockBusiness) => dateKey(now(), business.timezone)
+
+  function toItem(item: MockItem): Item {
+    return {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      price: item.price,
+      quantity: item.quantity,
+      lowStockLevel: item.lowStockLevel,
+      active: item.active,
+    }
+  }
+
+  function toOrder(order: MockOrder): Order {
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      staffId: order.staffId,
+      staffName: order.staffName,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      paymentReference: order.paymentReference,
+      paymentConfirmedByName: order.paymentConfirmedByName,
+      paymentConfirmedAt: order.paymentConfirmedAt,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      note: order.note,
+      dateKey: order.dateKey,
+      createdAt: order.createdAt,
+      voidedAt: order.voidedAt,
+      voidedByName: order.voidedByName,
+      voidReason: order.voidReason,
+      lines: order.lines.map((line) => ({ ...line })),
+    }
+  }
+
+  function toHeldOrder(db: MockDb, held: MockHeldOrder): HeldOrder {
+    const lines = held.lines.map((line) => {
+      const item = db.items.find((candidate) => candidate.id === line.itemId)
+      return {
+        itemId: line.itemId,
+        quantity: line.quantity,
+        name: item?.name ?? 'Removed item',
+        unitPrice: item?.price ?? 0,
+        available: item?.quantity ?? 0,
+        active: item?.active ?? false,
+      }
+    })
+    return {
+      id: held.id,
+      staffId: held.staffId,
+      staffName: held.staffName,
+      customerName: held.customerName,
+      customerPhone: held.customerPhone,
+      note: held.note,
+      createdAt: held.createdAt,
+      updatedAt: held.updatedAt,
+      lines,
+      total: lines.reduce(
+        (sum, line) => sum + (line.active ? line.unitPrice * line.quantity : 0),
+        0,
+      ),
+    }
+  }
+
+  /** Optional text fields: trimmed, blank becomes null, too long is refused. */
+  function optional(value: string | null | undefined, max: number): string | null {
+    const cleaned = cleanText(value)
+    if ((cleaned?.length ?? 0) > max) fail('validation')
+    return cleaned
+  }
+
+  /** A cart from the browser: merged, whole numbers, at least one line. */
+  function cartFrom(lines: readonly CartLine[]): CartLine[] {
+    const normalized = normalizeCart(lines)
+    if (!normalized || normalized.length === 0) fail('validation')
+    return normalized
+  }
+
   // --- The API -------------------------------------------------------------
 
   const api: TallyboxApi = {
@@ -371,6 +466,23 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
       async signOut() {
         setSignedIn(null)
         return Promise.resolve()
+      },
+
+      async changePassword({ currentPassword, newPassword }) {
+        const db = await begin()
+        const user = db.users.find((candidate) => candidate.id === signedInUserId())
+        if (!user) fail('unauthenticated')
+        if (user.role !== 'super_admin') requireMember(db, ['owner', 'staff'])
+        if (!(await passwordMatches(currentPassword, user.passwordSalt, user.passwordHash))) {
+          fail('wrong_password')
+        }
+        if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX) {
+          fail('weak_password')
+        }
+        const salt = newSalt()
+        user.passwordSalt = salt
+        user.passwordHash = await hashPassword(newPassword, salt)
+        store.write(db)
       },
     },
 
@@ -455,6 +567,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           createdAt: stamp,
           suspendedAt: null,
           suspendedReason: null,
+          orderCounter: 0,
         })
         db.users.push({
           id: ownerId,
@@ -475,6 +588,234 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         // One write: everything is created together, or nothing is.
         store.write(db)
         return { businessCode }
+      },
+    },
+
+    items: {
+      async list() {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        return db.items
+          .filter(
+            (item) => item.businessId === business.id && (item.active || user.role === 'owner'),
+          )
+          .map(toItem)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      },
+    },
+
+    orders: {
+      async create(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        if (!input.clientOrderId) fail('validation')
+
+        // Already confirmed: a retry or a double tap. Return the same order.
+        const existing = db.orders.find(
+          (order) =>
+            order.businessId === business.id && order.clientOrderId === input.clientOrderId,
+        )
+        if (existing) return toOrder(existing)
+
+        if (input.paymentConfirmed !== true) fail('payment_not_confirmed')
+        if (!isPaymentMethod(input.paymentMethod)) fail('validation')
+        const lines = cartFrom(input.lines)
+        const customerName = optional(input.customerName, ORDER_LIMITS.customerNameMax)
+        const customerPhone = optional(input.customerPhone, ORDER_LIMITS.customerPhoneMax)
+        const paymentReference = optional(input.paymentReference, ORDER_LIMITS.paymentReferenceMax)
+        const note = optional(input.note, ORDER_LIMITS.noteMax)
+
+        // Names and prices come from the item list now, never from the cart.
+        const itemsById = new Map(
+          db.items.filter((item) => item.businessId === business.id).map((item) => [item.id, item]),
+        )
+        const check = checkOrder(lines, itemsById)
+        if (!check.ok) {
+          if (check.reason === 'item_unavailable') fail('item_unavailable', { names: check.names })
+          fail('insufficient_stock', { problems: check.problems })
+        }
+
+        const stamp = now()
+        const at = stamp.toISOString()
+        const day = dateKey(stamp, business.timezone)
+        business.orderCounter += 1
+        const order: MockOrder = {
+          id: `order-${crypto.randomUUID()}`,
+          businessId: business.id,
+          orderNumber: business.orderCounter,
+          clientOrderId: input.clientOrderId,
+          staffId: user.id,
+          staffName: user.displayName,
+          total: check.total,
+          paymentMethod: input.paymentMethod,
+          paymentReference,
+          paymentConfirmedBy: user.id,
+          paymentConfirmedByName: user.displayName,
+          paymentConfirmedAt: at,
+          customerName,
+          customerPhone,
+          note,
+          status: 'completed',
+          dateKey: day,
+          createdAt: at,
+          voidedAt: null,
+          voidedBy: null,
+          voidedByName: null,
+          voidReason: null,
+          lines: check.lines,
+        }
+
+        // Stock goes down, and each line is written to the ledger.
+        for (const line of check.lines) {
+          const item = itemsById.get(line.itemId)!
+          const before = item.quantity
+          item.quantity = before - line.quantity
+          item.updatedAt = at
+          db.stockMovements.push({
+            id: `move-${crypto.randomUUID()}`,
+            businessId: business.id,
+            itemId: item.id,
+            itemName: item.name,
+            type: 'sale',
+            delta: -line.quantity,
+            quantityBefore: before,
+            quantityAfter: item.quantity,
+            reason: null,
+            note: null,
+            orderId: order.id,
+            restockId: null,
+            supplier: null,
+            unitCost: null,
+            createdBy: user.id,
+            createdByName: user.displayName,
+            dateKey: day,
+            createdAt: at,
+          })
+        }
+
+        // A confirmed hold is removed in the same step.
+        if (input.heldOrderId) {
+          db.heldOrders = db.heldOrders.filter(
+            (held) =>
+              !(
+                held.id === input.heldOrderId &&
+                held.businessId === business.id &&
+                (user.role === 'owner' || held.staffId === user.id)
+              ),
+          )
+        }
+
+        db.orders.push(order)
+        store.write(db)
+        return toOrder(order)
+      },
+
+      async listMine() {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        const today = todayKey(business)
+        return db.orders
+          .filter(
+            (order) =>
+              order.businessId === business.id &&
+              order.staffId === user.id &&
+              order.dateKey === today,
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .map(toOrder)
+      },
+
+      async get(orderId) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        const order = db.orders.find(
+          (candidate) => candidate.id === orderId && candidate.businessId === business.id,
+        )
+        // Staff may open only their own orders from today.
+        if (
+          !order ||
+          (user.role === 'staff' &&
+            (order.staffId !== user.id || order.dateKey !== todayKey(business)))
+        ) {
+          fail('not_found')
+        }
+        return toOrder(order)
+      },
+    },
+
+    held: {
+      async list() {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        return db.heldOrders
+          .filter(
+            (held) =>
+              held.businessId === business.id &&
+              (user.role === 'owner' || held.staffId === user.id),
+          )
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .map((held) => toHeldOrder(db, held))
+      },
+
+      async save(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        const lines = cartFrom(input.lines)
+        const customerName = optional(input.customerName, ORDER_LIMITS.customerNameMax)
+        const customerPhone = optional(input.customerPhone, ORDER_LIMITS.customerPhoneMax)
+        const note = optional(input.note, ORDER_LIMITS.noteMax)
+
+        const names = lines.flatMap((line) => {
+          const item = db.items.find(
+            (candidate) => candidate.id === line.itemId && candidate.businessId === business.id,
+          )
+          return item?.active ? [] : [item?.name ?? 'An item']
+        })
+        if (names.length > 0) fail('item_unavailable', { names })
+
+        const at = now().toISOString()
+        let held: MockHeldOrder | undefined
+        if (input.heldOrderId) {
+          held = db.heldOrders.find(
+            (candidate) =>
+              candidate.id === input.heldOrderId &&
+              candidate.businessId === business.id &&
+              (user.role === 'owner' || candidate.staffId === user.id),
+          )
+        }
+        if (held) {
+          Object.assign(held, { lines, customerName, customerPhone, note, updatedAt: at })
+        } else {
+          held = {
+            id: `held-${crypto.randomUUID()}`,
+            businessId: business.id,
+            staffId: user.id,
+            staffName: user.displayName,
+            customerName,
+            customerPhone,
+            note,
+            createdAt: at,
+            updatedAt: at,
+            lines,
+          }
+          db.heldOrders.push(held)
+        }
+        store.write(db)
+        return toHeldOrder(db, held)
+      },
+
+      async discard(heldOrderId) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        const held = db.heldOrders.find(
+          (candidate) =>
+            candidate.id === heldOrderId &&
+            candidate.businessId === business.id &&
+            (user.role === 'owner' || candidate.staffId === user.id),
+        )
+        if (!held) fail('not_found')
+        db.heldOrders = db.heldOrders.filter((candidate) => candidate.id !== held.id)
+        store.write(db)
       },
     },
 
@@ -545,9 +886,10 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           activeStaffCount: db.users.filter(
             (user) => user.businessId === business.id && user.role === 'staff' && user.active,
           ).length,
-          // Orders arrive in step 1B.
-          orderCount: 0,
-          orderCountToday: 0,
+          orderCount: db.orders.filter((order) => order.businessId === business.id).length,
+          orderCountToday: db.orders.filter(
+            (order) => order.businessId === business.id && order.dateKey === todayKey(business),
+          ).length,
           phone: business.phone,
           timezone: business.timezone,
           currencyCode: business.currencyCode,
