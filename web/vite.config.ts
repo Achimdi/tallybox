@@ -1,11 +1,24 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import { Scanner } from '@tailwindcss/oxide'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import type { Plugin } from 'vite'
+import { loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vitest/config'
+
+/**
+ * The web folder, spelled exactly as Windows stores it.
+ *
+ * On Windows the same folder can arrive as C:\... or c:\... depending on the
+ * terminal. The bundler treats those as two different files, which once put two
+ * copies of React in the build (the app crashed on start with "Cannot read
+ * properties of null (reading 'useContext')"). Every path below starts from
+ * this one canonical spelling.
+ */
+const WEB_ROOT = realpathSync.native(fileURLToPath(new URL('.', import.meta.url)))
+const SRC = join(WEB_ROOT, 'src')
 
 interface WebPackageJson {
   version: string
@@ -57,7 +70,7 @@ function tailwindScannerCheck(): Plugin {
       const scanner = new Scanner({
         sources: [
           {
-            base: fileURLToPath(new URL('./src', import.meta.url)),
+            base: SRC,
             pattern: '**/*.tsx',
             negated: false,
           },
@@ -73,12 +86,36 @@ function tailwindScannerCheck(): Plugin {
   }
 }
 
+/**
+ * Stops a build for real clients that would run on demo data. Their records
+ * would live only in one browser and vanish. The app checks again when it
+ * starts (src/main.tsx), and an end-to-end test proves this build fails.
+ */
+function releaseGuard(): Plugin {
+  return {
+    name: 'tallybox-release-guard',
+    apply: 'build',
+    configResolved(config) {
+      const fileEnv = loadEnv(config.mode, config.envDir || process.cwd(), 'VITE_')
+      const read = (name: string) => process.env[name] ?? fileEnv[name] ?? ''
+      const release = read('VITE_RELEASE').trim()
+      const dataSource = read('VITE_DATA_SOURCE').trim() || 'mock'
+      if (release === 'client' && dataSource !== 'supabase') {
+        throw new Error(
+          'A client release cannot use demo data. Set VITE_DATA_SOURCE=supabase, or build without VITE_RELEASE=client for a demo.',
+        )
+      }
+    },
+  }
+}
+
 export default defineConfig({
   // One .env.local at the repo root serves the whole project.
-  envDir: '..',
+  root: WEB_ROOT,
+  envDir: join(WEB_ROOT, '..'),
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@': SRC,
     },
   },
   define: {
@@ -86,6 +123,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    releaseGuard(),
     tailwindScannerCheck(),
     tailwindcss(),
     versionFile(),
@@ -138,6 +176,8 @@ export default defineConfig({
     restoreMocks: true,
     // Tests never use your real project settings, even if .env.local exists.
     env: {
+      VITE_DATA_SOURCE: 'mock',
+      VITE_RELEASE: '',
       VITE_SUPABASE_URL: '',
       VITE_SUPABASE_PUBLISHABLE_KEY: '',
       VITE_TURNSTILE_SITE_KEY: '',
