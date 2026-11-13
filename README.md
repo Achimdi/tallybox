@@ -10,13 +10,13 @@ Online inventory and sales for small shops, pharmacies and restaurants. A websit
 
 ## Status and plan
 
-| Phase                               | What                                                                                                                      | Status                                              |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                |
-| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | 1A done; 1B built (staff portal), awaiting approval |
-| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                                         |
-| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                         |
-| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                         |
+| Phase                               | What                                                                                                                      | Status                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                       |
+| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | 1A and 1B done; 1C built (owner portal), awaiting approval |
+| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                                                |
+| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                                |
+| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                                |
 
 Backend code written early (database migrations, Edge Functions, 198 database tests) is parked on the `backend-draft` branch for Phase 2.
 
