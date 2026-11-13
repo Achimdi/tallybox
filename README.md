@@ -1,13 +1,24 @@
 # Tallybox
 
-Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, Supabase in `supabase/`, hosted free on Cloudflare Pages.
+Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, hosted free on Cloudflare Pages. Supabase (database, sign-in, server functions) is connected in Phase 2.
 
 - **The full brief:** [docs/Tallybox-Master-Build-Prompt.md](docs/Tallybox-Master-Build-Prompt.md)
+- **Every screen and flow:** [docs/ux-map.md](docs/ux-map.md)
 - **Working rules for Claude Code:** [CLAUDE.md](CLAUDE.md)
 - **Free-plan limits and upgrade triggers:** [docs/free-plan-limits.md](docs/free-plan-limits.md)
-- **Billing seams:** [docs/billing-plan.md](docs/billing-plan.md)
+- **Access periods and billing seams:** [docs/billing-plan.md](docs/billing-plan.md)
 
-**Status:** Phase 1 (Auth and onboarding) built: registration with activation codes, owner and staff sign-in, staff creation, suspension, and a minimal super-admin area. Items, orders and reports come next.
+## Status and plan
+
+| Phase                               | What                                                                                                                      | Status                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                          |
+| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | UX map awaiting your approval |
+| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                   |
+| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                   |
+| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                   |
+
+Backend code written early (database migrations, Edge Functions, 198 database tests) is parked on the `backend-draft` branch for Phase 2.
 
 ## Run it
 
@@ -18,28 +29,22 @@ npm install        # once
 npm run dev        # http://localhost:5173
 ```
 
-Until `.env.local` points at a Supabase project, the welcome page shows a dashed "Development preview" box. Use it to look at each role's layout and to open the design gallery at `/dev/gallery`. It disappears once Supabase is configured, and it is never part of the live app.
+Nothing else is needed in Phase 1: no accounts, no keys, no database. The welcome page has a dashed "Development preview" box to look at each role's layout and to open the design gallery at `/dev/gallery`. Step 1A replaces it with demo accounts backed by the mock data layer.
 
 ## Commands
 
 Run all of these from the repo root.
 
-| Command                   | What it does                                                     |
-| ------------------------- | ---------------------------------------------------------------- |
-| `npm run dev`             | Start the app with live reload                                   |
-| `npm run check`           | Everything CI checks: format, lint, typecheck, unit tests, build |
-| `npm run test`            | Unit and component tests                                         |
-| `npm run test:e2e`        | End-to-end tests against the real production build               |
-| `npm run build`           | Production build into `web/dist`                                 |
-| `npm run preview`         | Serve the production build locally                               |
-| `npm run format`          | Format every file                                                |
-| `npm run icons -w web`    | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
-| `npm run db:test:local`   | Database tests in an in-memory Postgres (no Docker needed)       |
-| `npm run db:test`         | Database tests on a real Supabase stack (needs Docker, so CI)    |
-| `npm run functions:test`  | Edge Function tests (Deno, no network)                           |
-| `npm run functions:check` | Type-check the Edge Functions                                    |
-| `npm run db:push`         | Apply new migrations to the linked Supabase project              |
-| `npm run db:types`        | Regenerate TypeScript types from the database                    |
+| Command                | What it does                                                     |
+| ---------------------- | ---------------------------------------------------------------- |
+| `npm run dev`          | Start the app with live reload                                   |
+| `npm run check`        | Everything CI checks: format, lint, typecheck, unit tests, build |
+| `npm run test`         | Unit and component tests                                         |
+| `npm run test:e2e`     | End-to-end tests against the real production build               |
+| `npm run build`        | Production build into `web/dist`                                 |
+| `npm run preview`      | Serve the production build locally                               |
+| `npm run format`       | Format every file                                                |
+| `npm run icons -w web` | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
 
 First time running end-to-end tests: `npx -w web playwright install chromium`.
 
@@ -48,76 +53,28 @@ First time running end-to-end tests: `npx -w web playwright install chromium`.
 ```
 web/                 The React app
   src/app/           Router, route guards, layouts, providers
+  src/api/           TallyboxApi: the one data interface (mock now, Supabase in Phase 2)
+  src/domain/        Business rules as pure functions, shared by both implementations
   src/components/    Shared UI (buttons, fields, cards, dialogs...)
   src/features/      One folder per feature (auth, items, orders...)
-  src/lib/           Supabase client, money, dates, errors, logging
+  src/lib/           Money, dates, errors, logging
   src/styles/        Design tokens (tokens.css) and base styles
   public/brand/      Placeholder logo and icons
   public/_headers    Security headers for Cloudflare Pages
   e2e/               End-to-end tests
-supabase/
-  migrations/        Every database change, as versioned SQL
-  tests/             Database tests (pgTAP)
-  functions/         Edge Functions. _shared/ holds the common frame and rules
-  scripts/           Super-admin setup, and the local database test runner
-docs/                The brief and supporting notes
+docs/                The brief, the UX map and supporting notes
 .github/workflows/   CI
 ```
 
-## One-time setup (your accounts)
+## Accounts
 
-Do these when you are ready. **Never paste a password, token or key into a chat.** Keys go in `.env.local` (gitignored) or in the platform's own settings.
+Phase 1 needs none. They are set up only when needed, one step at a time, and you never paste a password, token or key into a chat:
 
-### 1. GitHub
+- **GitHub** (already set up) for the code and CI. Push, then check the two CI jobs go green in the repo's **Actions** tab.
+- **Cloudflare Pages**, optional in Phase 1, to share a clearly labelled DEMO link (steps below).
+- **Supabase and Cloudflare Turnstile**, only from Phase 2. Those steps are in the README on the `backend-draft` branch and will come back here in Phase 2.
 
-1. Create a new **private** repo named `tallybox` at github.com/new. Do not add a README or .gitignore (the project has them).
-2. Connect and push:
-   ```bash
-   git remote add origin https://github.com/YOUR-USERNAME/tallybox.git
-   git push -u origin main
-   ```
-3. Open the repo's **Actions** tab and check the four CI jobs go green. The database job is the first run of the database tests against a real Supabase stack.
-
-### 2. Supabase
-
-Do this for `tallybox-dev` first. Repeat for `tallybox-prod` only when you are ready to go live.
-
-1. Sign up at supabase.com and create two projects: `tallybox-dev` and `tallybox-prod`. Save each database password in a password manager.
-2. Copy `.env.example` to `.env.local` in the repo root. From the **dev** project's settings, fill in the project URL and the **publishable** key (`sb_publishable_...`). Never the secret key.
-3. Link the CLI to the dev project, then apply the migrations and deploy the Edge Functions:
-   ```bash
-   npx supabase login
-   npx supabase link --project-ref YOUR-DEV-PROJECT-REF
-   npm run db:push
-   npx supabase functions deploy
-   ```
-   The secret key that Edge Functions use is provided by Supabase automatically. You never copy it anywhere.
-4. Auth settings (dashboard > Authentication):
-   - **Sign In / Providers > Email:** turn off "Allow new users to sign up" (accounts are only ever created by the Edge Functions) and turn off "Confirm email" (v1 sends no email).
-   - **URL Configuration:** set the Site URL to your app address (`http://localhost:5173` while developing).
-5. Make yourself the super-admin: dashboard > Authentication > Users > **Add user** with your own email, ticking "Auto Confirm User". Then open SQL Editor, paste [supabase/scripts/make-super-admin.sql](supabase/scripts/make-super-admin.sql), put your email in it, and run it once. Sign in on the **Owner login** page.
-
-### 2b. Cloudflare Turnstile (bot check on the login and registration forms)
-
-1. Cloudflare dashboard > **Turnstile > Add widget**. Hostnames: `localhost` and your `*.pages.dev` address. Mode: Managed.
-2. Put the **site key** (public) in `.env.local` as `VITE_TURNSTILE_SITE_KEY`, and in Cloudflare Pages' environment variables.
-3. Put the **secret key** in two places, never in a file in the repo:
-   - Edge Functions: `npx supabase secrets set TURNSTILE_SECRET_KEY=...` (checks registration).
-   - Supabase dashboard > Authentication > **Attack Protection** > Enable CAPTCHA protection, provider Turnstile (checks sign-in).
-4. Tell the Edge Functions where the app lives, so other websites cannot call them:
-   `npx supabase secrets set APP_ORIGINS=http://localhost:5173,https://YOUR-PROJECT.pages.dev,https://*.YOUR-PROJECT.pages.dev`
-
-For local testing without a real widget, Cloudflare's test keys always pass: site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`. Never use them in production.
-
-### Test Phase 1 end to end (once, after steps 2 and 2b)
-
-1. `npm run dev`, sign in as super-admin, open **Codes**, generate a code for a second email address you own.
-2. Sign out, choose **Register your business**, and register with that email and code. You land on Owner login: sign in.
-3. On the dashboard, **Create a staff account**. Sign out, then sign in on **Staff login** with the business code, username and password.
-4. Sign in as super-admin in a second browser, suspend the business, then switch back to the staff tab: within a few seconds it shows the suspended screen. Reactivate, and staff can sign in again.
-5. Try the activation code again: it is refused as already used.
-
-### 3. Cloudflare Pages (the first deploy)
+### Cloudflare Pages (optional demo link)
 
 1. Sign up at dash.cloudflare.com. Go to **Workers & Pages > Create > Pages > Connect to Git** and pick the `tallybox` repo.
 2. Build settings:
@@ -125,13 +82,13 @@ For local testing without a real widget, Cloudflare's test keys always pass: sit
    - Build command: `npm run build`
    - Build output directory: `web/dist`
    - Root directory: leave empty
-3. Environment variables (Settings > Environment variables), for **Production** and **Preview**:
-   - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_TURNSTILE_SITE_KEY` (production uses the prod project, preview uses the dev project).
-4. Deploy. The app is then live at `https://YOUR-PROJECT.pages.dev`. Every push to `main` deploys to production, and every pull request gets its own preview URL.
+3. Deploy. The demo is then at `https://YOUR-PROJECT.pages.dev`. Every push to `main` updates it, and every pull request gets its own preview URL.
+
+Demo data lives only in the browser it was created in, so a demo link is for showing the product, never for real clients. Production builds for real clients refuse to start in demo mode.
 
 Deploys use Cloudflare's own GitHub connection, so no deploy secrets are stored in GitHub. The Node version comes from `.node-version`.
 
-### 4. VS Code
+### VS Code
 
 Open the folder and accept the "install recommended extensions" prompt (ESLint, Prettier, Tailwind CSS IntelliSense, Error Lens, GitLens). Files format on save.
 
@@ -145,7 +102,7 @@ Tallybox is an installable web app. Its service worker caches only the app shell
 
 To release: bump `version` in `web/package.json` (and the root `package.json`), commit, and push to `main`.
 
-**Test it after the first deploy** (do this once per release process change):
+**Test it after the first deploy:**
 
 1. Open the live site in a phone browser and install it to the home screen. Leave it open.
 2. Bump the version, push, and wait for Cloudflare to finish deploying.
@@ -156,16 +113,12 @@ To release: bump `version` in `web/package.json` (and the root `package.json`), 
 **Pages have no styling, or the build stops with "Tailwind found no class names".**
 Windows Smart App Control can block a freshly released copy of Tailwind's scanner (a small native program) until Windows has seen it enough to trust it. Tailwind then cannot read the source files. This happened with Tailwind 4.3.5 during Phase 0, which is why Tailwind is pinned to an exact version in `web/package.json`. If it happens after an upgrade, go back to the previous Tailwind version and try the new one again in a week or two. Do not turn Smart App Control off for this.
 
-**`npm install` is slow or stalls on `supabase`.**
-The Supabase CLI downloads its program during install. On a slow connection it can take several minutes. Let it finish.
-
 **Tests fail with "Invalid Chai property".**
 Already handled in `web/src/test/setup.ts`. If it returns, the cause is two copies of Vitest being loaded, usually from a lower-case drive letter in the terminal path on Windows.
 
 ## Security notes
 
-- The browser only ever gets the Supabase URL and **publishable** key. Data is protected by Row Level Security and server functions, not by hiding keys. `web/src/lib/env.ts` refuses to start the client if a secret key is put in its place.
-- The browser never writes to tables. Changes go through Postgres functions or Edge Functions.
-- `supabase/migrations/20261111000000_baseline_hardening.sql` closes new tables and functions to the browser by default.
+- Phase 1 has no server and holds no real data. Demo data stays in the browser.
+- From Phase 2, the browser only ever gets the Supabase URL and **publishable** key. Data is protected by Row Level Security and server functions, not by hiding keys. `web/src/lib/env.ts` refuses to start the client if a secret key is put in its place.
 - Security headers, including a Content Security Policy, are in `web/public/_headers`.
 - Logs are structured and personal data is removed before writing (`web/src/lib/logger.ts`).
