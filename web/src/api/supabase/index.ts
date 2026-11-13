@@ -23,7 +23,7 @@ export function createSupabaseApi(): TallyboxApi {
     orders: { create: notYet, listMine: notYet, get: notYet, list: notYet, void: notYet },
     held: { list: notYet, save: notYet, discard: notYet },
     stock: { restock: notYet, adjust: notYet, movements: notYet },
-    reports: { dashboard: notYet },
+    reports: { dashboard: notYet, summary: notYet, exportOrders: notYet },
     business: { get: notYet, update: notYet },
     admin: {
       listBusinesses: notYet,

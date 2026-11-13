@@ -33,6 +33,7 @@ import {
   type CartLine,
 } from '@/domain/orders'
 import { itemSales, summarizeDay } from '@/domain/reports'
+import { buildSalesReport, inRange, isValidRange } from '@/domain/salesReport'
 import {
   isAdjustReason,
   restockLinesProblem,
@@ -42,6 +43,7 @@ import {
 import { addDays, dateKey, isDateKey, isValidTimeZone } from '@/lib/dates'
 import { deviceId as browserDeviceId } from '@/lib/device'
 import { AppError, type AppErrorCode } from '@/lib/errors'
+import { EXPORT_MAX_ORDERS } from '../types'
 import type {
   AdminBusiness,
   AdminBusinessDetail,
@@ -944,6 +946,36 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
             .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
             .slice(0, 10)
             .map(toItem),
+        }
+      },
+
+      async summary(range) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        if (!isValidRange(range)) fail('validation')
+        const costs = Object.fromEntries(
+          db.itemCosts
+            .filter((cost) => cost.businessId === business.id)
+            .map((cost) => [cost.itemId, cost.costPrice]),
+        )
+        return buildSalesReport(
+          db.orders.filter((order) => order.businessId === business.id),
+          range,
+          db.items.filter((item) => item.businessId === business.id),
+          costs,
+        )
+      },
+
+      async exportOrders(range) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        if (!isValidRange(range)) fail('validation')
+        const matching = db.orders
+          .filter((order) => order.businessId === business.id && inRange(order.dateKey, range))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        return {
+          orders: matching.slice(0, EXPORT_MAX_ORDERS).map(toOrder),
+          truncated: matching.length > EXPORT_MAX_ORDERS,
         }
       },
     },

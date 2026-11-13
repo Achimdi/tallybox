@@ -20,6 +20,7 @@ import type { AccessFilter, BusinessStatus } from '@/domain/access'
 import type { CodeStatus } from '@/domain/activationCodes'
 import type { CartLine, PaymentMethod } from '@/domain/orders'
 import type { DaySummary, ItemSales } from '@/domain/reports'
+import type { ReportRange, SalesReport } from '@/domain/salesReport'
 import type { AdjustReason, MovementType, RestockLine } from '@/domain/stock'
 
 // ---------------------------------------------------------------------------
@@ -240,8 +241,23 @@ export interface Dashboard {
   lowStock: Item[]
 }
 
+/** The most orders one CSV export returns. A longer range is cut short and says so. */
+export const EXPORT_MAX_ORDERS = 5000
+
+export interface OrderExport {
+  /** Oldest first, as a spreadsheet reads. */
+  orders: Order[]
+  /** True when the range had more than EXPORT_MAX_ORDERS orders. */
+  truncated: boolean
+}
+
 export interface ReportsApi {
+  /** Owner only. */
   dashboard(): Promise<Dashboard>
+  /** Owner only. At most REPORT_MAX_DAYS days. */
+  summary(range: ReportRange): Promise<SalesReport>
+  /** Owner only. Every order in the range, completed and voided, for a CSV file. */
+  exportOrders(range: ReportRange): Promise<OrderExport>
 }
 
 // ---------------------------------------------------------------------------

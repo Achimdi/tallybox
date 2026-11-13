@@ -460,5 +460,77 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
       expect((await owner.business.update(settings)).logoUrl).toBe(tinyPng)
       expect((await owner.business.update({ ...settings, logo: null })).logoUrl).toBeNull()
     })
+
+    // --- Reports ---------------------------------------------------------------
+
+    it('reports a range: sales, average, payment methods, staff, items and voids', async () => {
+      const range = { from: today, to: today }
+      const before = await owner.reports.summary(range)
+      const item = await owner.items.upsert(newItem({ price: 25000, costPrice: 10000 }))
+
+      await sell(staff, item.id, 2)
+      const second = await sell(owner, item.id, 1)
+      const voided = await sell(staff, item.id, 1)
+      await owner.orders.void({ orderId: voided.id, reason: 'Contract' })
+
+      const after = await owner.reports.summary(range)
+      expect(after.sales - before.sales).toBe(75000)
+      expect(after.orders - before.orders).toBe(2)
+      expect(after.voided - before.voided).toBe(1)
+      expect(after.voidedTotal - before.voidedTotal).toBe(25000)
+      expect(after.averageOrder).toBe(
+        after.orders === 0 ? 0 : Math.round(after.sales / after.orders),
+      )
+      expect(after.byPaymentMethod.cash.sales - before.byPaymentMethod.cash.sales).toBe(75000)
+      expect(after.byDay).toEqual([expect.objectContaining({ dateKey: today, sales: after.sales })])
+      expect(after.items.find((entry) => entry.itemId === item.id)).toMatchObject({
+        quantity: 3,
+        sales: 75000,
+      })
+      const staffTotal = after.byStaff.reduce((sum, entry) => sum + entry.sales, 0)
+      expect(staffTotal).toBe(after.sales)
+      expect(after.byStaff.some((entry) => entry.staffName === second.staffName)).toBe(true)
+      // Stock value now: the new item has 20 - 3 = 17 left at a cost of 100.00.
+      expect(after.stockValue?.atCost).toBeGreaterThanOrEqual(17 * 10000)
+    })
+
+    it('lists items that sold nothing at the end, and fills in quiet days', async () => {
+      const item = await owner.items.upsert(newItem())
+      const report = await owner.reports.summary({ from: addDays(today, -2), to: today })
+      expect(report.byDay.map((day) => day.dateKey)).toEqual([
+        addDays(today, -2),
+        addDays(today, -1),
+        today,
+      ])
+      const last = report.items.slice(report.items.findIndex((entry) => entry.sales === 0))
+      expect(last.every((entry) => entry.sales === 0)).toBe(true)
+      expect(last.some((entry) => entry.itemId === item.id)).toBe(true)
+    })
+
+    it('exports every order in a range, oldest first, voids included', async () => {
+      const item = await owner.items.upsert(newItem())
+      const first = await sell(staff, item.id, 1)
+      const second = await sell(staff, item.id, 1)
+      await owner.orders.void({ orderId: second.id, reason: 'Contract' })
+      const { orders, truncated } = await owner.reports.exportOrders({ from: today, to: today })
+      expect(truncated).toBe(false)
+      const ids = orders.map((order) => order.id)
+      expect(ids.indexOf(first.id)).toBeLessThan(ids.indexOf(second.id))
+      expect(orders.find((order) => order.id === second.id)?.status).toBe('voided')
+    })
+
+    it('refuses bad ranges and keeps reports from staff', async () => {
+      for (const range of [
+        { from: today, to: addDays(today, -1) },
+        { from: 'yesterday', to: today },
+        { from: addDays(today, -400), to: today },
+      ]) {
+        expect(await codeOf(owner.reports.summary(range))).toBe('validation')
+        expect(await codeOf(owner.reports.exportOrders(range))).toBe('validation')
+      }
+      const range = { from: today, to: today }
+      expect(await codeOf(staff.reports.summary(range))).toBe('permission_denied')
+      expect(await codeOf(staff.reports.exportOrders(range))).toBe('permission_denied')
+    })
   })
 }
