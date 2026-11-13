@@ -7,7 +7,7 @@ import {
   PASSWORD_MIN,
   USERNAME_MAX,
   USERNAME_MIN,
-} from '@shared/rules'
+} from '@/domain/rules'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 import { useState } from 'react'

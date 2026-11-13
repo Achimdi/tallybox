@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { LIMITS } from '@shared/rules'
+import { LIMITS } from '@/domain/rules'
 import { Copy, MessageCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'

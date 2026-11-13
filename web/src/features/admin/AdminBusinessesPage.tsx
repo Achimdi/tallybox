@@ -1,4 +1,4 @@
-import { LIMITS } from '@shared/rules'
+import { LIMITS } from '@/domain/rules'
 import { Ban, KeyRound, Store, Users } from 'lucide-react'
 import { useState } from 'react'
 import { ErrorBanner } from '@/components/Banner'

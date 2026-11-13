@@ -7,7 +7,7 @@ import {
   isWellFormedActivationCode,
   normalizeBusinessCode,
   staffEmail,
-} from '@shared/rules'
+} from '@/domain/rules'
 import { describe, expect, it } from 'vitest'
 
 /**

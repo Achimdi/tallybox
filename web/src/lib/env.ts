@@ -1,4 +1,4 @@
-import { DEFAULT_STAFF_EMAIL_DOMAIN } from '@shared/rules'
+import { DEFAULT_STAFF_EMAIL_DOMAIN } from '@/domain/rules'
 import { z } from 'zod'
 
 /**

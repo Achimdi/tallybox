@@ -8,7 +8,7 @@ import {
   PASSWORD_MAX,
   PASSWORD_MIN,
   type BusinessCodeProblem,
-} from '@shared/rules'
+} from '@/domain/rules'
 import { useQuery } from '@tanstack/react-query'
 import { CircleCheck } from 'lucide-react'
 import { useState } from 'react'

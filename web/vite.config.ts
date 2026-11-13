@@ -79,8 +79,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      // Rules shared with the Edge Functions (plain TypeScript, no imports).
-      '@shared': fileURLToPath(new URL('../supabase/functions/_shared', import.meta.url)),
     },
   },
   define: {

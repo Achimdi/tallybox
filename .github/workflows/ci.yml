@@ -31,20 +31,6 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  functions:
-    name: Edge Functions (Deno)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: npm
-      - run: npm ci
-      - run: npm run functions:check
-      - run: npm run functions:test
-
   e2e:
     name: End-to-end tests
     runs-on: ubuntu-latest
@@ -64,21 +50,3 @@ jobs:
           name: playwright-report
           path: web/playwright-report
           retention-days: 7
-
-  database:
-    name: Database tests (pgTAP)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: npm
-      - run: npm ci
-      # Fast check in an in-memory Postgres, the same one used on the developer's machine.
-      - run: npm run db:test:local
-      # The real thing: Postgres with Supabase's auth schema, in Docker.
-      # Applies every migration from scratch, then runs the same test files.
-      - run: npx supabase db start
-      - run: npx supabase test db

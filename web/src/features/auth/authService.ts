@@ -1,4 +1,4 @@
-import { staffEmail } from '@shared/rules'
+import { staffEmail } from '@/domain/rules'
 import { callRpc } from '@/lib/api'
 import { env } from '@/lib/env'
 import { AppError, isNetworkFailure, type AppErrorCode } from '@/lib/errors'

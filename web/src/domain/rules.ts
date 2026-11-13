@@ -1,11 +1,10 @@
 /**
- * Naming and format rules shared by the web app and the Edge Functions.
+ * Naming and format rules: business codes, usernames, passwords, activation
+ * codes and text lengths.
  *
- * This file is plain TypeScript with no imports, so both sides can use the
- * very same code: the web app imports it as `@shared/rules`, and Edge Functions
- * import it relatively. The database enforces the same rules again in
- * supabase/migrations (private.is_valid_business_code and friends). If you
- * change a rule, change it in both places and in the tests.
+ * Plain TypeScript with no imports, so the mock data layer, the screens and
+ * (in Phase 2) the Supabase Edge Functions and database can all apply exactly
+ * the same rules. If you change a rule here, change it there too.
  */
 
 // ---------------------------------------------------------------------------
