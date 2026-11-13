@@ -19,6 +19,8 @@
 import type { AccessFilter, BusinessStatus } from '@/domain/access'
 import type { CodeStatus } from '@/domain/activationCodes'
 import type { CartLine, PaymentMethod } from '@/domain/orders'
+import type { DaySummary, ItemSales } from '@/domain/reports'
+import type { AdjustReason, MovementType, RestockLine } from '@/domain/stock'
 
 // ---------------------------------------------------------------------------
 // Sessions
@@ -128,9 +130,154 @@ export interface Item {
   active: boolean
 }
 
+export interface ItemInput {
+  /** Chosen by the app for a new item, so saving twice never makes two items. */
+  itemId: string
+  name: string
+  category: string
+  unit: string
+  /** Selling price, minor units. */
+  price: number
+  /** Owner-only. Null removes it. */
+  costPrice: number | null
+  /** Null keeps the current level (or uses the business default for a new item). */
+  lowStockLevel: number | null
+  /** New items only; later changes go through restocks and adjustments. */
+  openingQuantity: number
+}
+
 export interface ItemsApi {
   /** Staff see items on sale. Owners also see archived items. Sorted by name. */
   list(): Promise<Item[]>
+  /** Owner only: cost prices by item id. Items without one are left out. */
+  costs(): Promise<Record<string, number>>
+  /** Owner only. Creates or edits. Never changes quantity, except the opening count of a new item. */
+  upsert(input: ItemInput): Promise<Item>
+  /** Owner only. Hides an item from selling and from staff. Its history stays. */
+  archive(itemId: string): Promise<void>
+  restore(itemId: string): Promise<void>
+}
+
+// ---------------------------------------------------------------------------
+// Stock (owner only)
+// ---------------------------------------------------------------------------
+
+export interface StockMovement {
+  id: string
+  itemId: string
+  itemName: string
+  type: MovementType
+  /** Positive adds stock, negative removes it. */
+  delta: number
+  quantityBefore: number
+  quantityAfter: number
+  reason: AdjustReason | null
+  note: string | null
+  orderId: string | null
+  orderNumber: number | null
+  restockId: string | null
+  supplier: string | null
+  unitCost: number | null
+  createdById: string | null
+  createdByName: string
+  dateKey: string
+  createdAt: string
+}
+
+export interface MovementFilter {
+  itemId?: string
+  type?: MovementType
+  /** Business days, "YYYY-MM-DD", inclusive. */
+  from?: string
+  to?: string
+  userId?: string
+  offset?: number
+  limit?: number
+}
+
+export interface Page<Row> {
+  rows: Row[]
+  /** How many match the filter in total. */
+  total: number
+}
+
+export interface RestockInput {
+  /** Chosen by the app once per delivery form: saving twice never adds stock twice. */
+  clientId: string
+  /** The business day it arrived, "YYYY-MM-DD". Not in the future. */
+  receivedOn: string
+  supplier: string
+  note: string
+  lines: RestockLine[]
+}
+
+export interface AdjustInput {
+  itemId: string
+  countedQuantity: number
+  /** The quantity shown when counting started. Refused with conflict if stock changed since. */
+  expectedQuantity: number
+  reason: AdjustReason
+  /** Required when the reason is "other". */
+  note: string
+}
+
+export interface StockApi {
+  restock(input: RestockInput): Promise<{ restockId: string }>
+  adjust(input: AdjustInput): Promise<Item>
+  /** Newest first. */
+  movements(filter: MovementFilter): Promise<Page<StockMovement>>
+}
+
+// ---------------------------------------------------------------------------
+// Reports (owner only; the full Reports screen arrives in step 1D)
+// ---------------------------------------------------------------------------
+
+export interface Dashboard {
+  today: DaySummary
+  yesterday: DaySummary
+  topItemsToday: ItemSales[]
+  /** Items on sale at or below their low-stock level, emptiest first. */
+  lowStock: Item[]
+}
+
+export interface ReportsApi {
+  dashboard(): Promise<Dashboard>
+}
+
+// ---------------------------------------------------------------------------
+// Business settings (everyone in the business reads them; owners change them)
+// ---------------------------------------------------------------------------
+
+export interface BusinessSettings {
+  id: string
+  name: string
+  businessCode: string
+  currencyCode: string
+  timezone: string
+  address: string | null
+  phone: string | null
+  receiptFooter: string | null
+  defaultLowStockLevel: number
+  /** A small image (data URL) in demo mode; a stored file in Phase 2. */
+  logoUrl: string | null
+  accessEndsAt: string | null
+}
+
+export interface BusinessSettingsInput {
+  name: string
+  currencyCode: string
+  timezone: string
+  address: string
+  phone: string
+  receiptFooter: string
+  defaultLowStockLevel: number
+  /** Leave out to keep the current logo; null removes it; a data URL sets a new one. */
+  logo?: string | null
+}
+
+export interface BusinessApi {
+  get(): Promise<BusinessSettings>
+  update(input: BusinessSettingsInput): Promise<BusinessSettings>
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +346,23 @@ export interface OrdersApi {
   listMine(): Promise<Order[]>
   /** Staff may open only their own orders from today. */
   get(orderId: string): Promise<Order>
+  /** Owner only: every order in a date range, newest first, filtered and paged. */
+  list(filter: OrderFilter): Promise<Page<Order>>
+  /** Owner only. Completed orders only; returns the stock and keeps the order as voided. */
+  void(input: { orderId: string; reason: string }): Promise<Order>
+}
+
+export interface OrderFilter {
+  /** Business days, "YYYY-MM-DD", inclusive. */
+  from: string
+  to: string
+  staffId?: string
+  status?: OrderStatus
+  paymentMethod?: PaymentMethod
+  /** An order number, with or without "#". */
+  search?: string
+  offset?: number
+  limit?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +432,10 @@ export interface NewStaffInput {
 export interface StaffApi {
   list(): Promise<StaffMember[]>
   create(input: NewStaffInput): Promise<StaffMember>
+  /** Owner only: a new temporary password for a staff member who forgot theirs. */
+  resetPassword(input: { staffId: string; newPassword: string }): Promise<void>
+  /** Owner only: a turned-off account cannot sign in, and is signed out. Never deleted. */
+  setActive(input: { staffId: string; active: boolean }): Promise<StaffMember>
 }
 
 // ---------------------------------------------------------------------------
@@ -401,6 +569,9 @@ export interface TallyboxApi {
   items: ItemsApi
   orders: OrdersApi
   held: HeldOrdersApi
+  stock: StockApi
+  reports: ReportsApi
+  business: BusinessApi
   admin: AdminApi
   /** Present only for the mock. */
   demo: DemoApi | null

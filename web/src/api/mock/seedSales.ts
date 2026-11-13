@@ -6,6 +6,7 @@ import type {
   MockItem,
   MockItemCost,
   MockOrder,
+  MockRestock,
   MockStockMovement,
   MovementType,
 } from './store'
@@ -480,6 +481,7 @@ export interface SalesSeed {
   stockMovements: MockStockMovement[]
   orders: MockOrder[]
   heldOrders: MockHeldOrder[]
+  restocks: MockRestock[]
   orderCounter: number
 }
 
@@ -795,5 +797,30 @@ export function createSalesSeed(input: SalesSeedInput): SalesSeed {
     },
   ]
 
-  return { items, itemCosts, stockMovements, orders, heldOrders, orderCounter: orders.length }
+  const restockEvent = events.find((event) => event.kind === 'restock')
+  const restocks: MockRestock[] = restockEvent
+    ? [
+        {
+          id: restockId,
+          businessId,
+          clientId: id('restock-client', 0),
+          supplier: 'MedSupply Ltd',
+          note: 'Weekly delivery',
+          receivedOn: dateKey(new Date(restockEvent.at), timezone),
+          createdBy: owner.id,
+          createdByName: owner.name,
+          createdAt: iso(restockEvent.at),
+        },
+      ]
+    : []
+
+  return {
+    items,
+    itemCosts,
+    stockMovements,
+    orders,
+    heldOrders,
+    restocks,
+    orderCounter: orders.length,
+  }
 }

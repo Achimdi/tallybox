@@ -32,7 +32,14 @@ import {
   ORDER_LIMITS,
   type CartLine,
 } from '@/domain/orders'
-import { dateKey, isValidTimeZone } from '@/lib/dates'
+import { itemSales, summarizeDay } from '@/domain/reports'
+import {
+  isAdjustReason,
+  restockLinesProblem,
+  STOCK_LIMITS,
+  type MovementType,
+} from '@/domain/stock'
+import { addDays, dateKey, isDateKey, isValidTimeZone } from '@/lib/dates'
 import { deviceId as browserDeviceId } from '@/lib/device'
 import { AppError, type AppErrorCode } from '@/lib/errors'
 import type {
@@ -43,9 +50,12 @@ import type {
   SessionUser,
   StaffMember,
   TallyboxApi,
+  BusinessSettings,
   HeldOrder,
   Item,
   Order,
+  Page,
+  StockMovement,
 } from '../types'
 import { hashPassword, newSalt, passwordMatches } from './passwords'
 import { createSeed, DEMO_ACCOUNTS } from './seed'
@@ -58,6 +68,7 @@ import {
   type MockHeldOrder,
   type MockItem,
   type MockOrder,
+  type MockStockMovement,
   type MockUser,
 } from './store'
 
@@ -385,6 +396,96 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
     return cleaned
   }
 
+  /**
+   * The one way stock changes: the item's quantity and a ledger entry, together.
+   * The caller writes the data once everything has succeeded.
+   */
+  function moveStock(
+    db: MockDb,
+    business: MockBusiness,
+    user: MockUser,
+    item: MockItem,
+    type: MovementType,
+    delta: number,
+    extra: Partial<MockStockMovement> = {},
+  ): void {
+    const at = now()
+    const before = item.quantity
+    item.quantity = before + delta
+    item.updatedAt = at.toISOString()
+    db.stockMovements.push({
+      id: `move-${crypto.randomUUID()}`,
+      businessId: business.id,
+      itemId: item.id,
+      itemName: item.name,
+      type,
+      delta,
+      quantityBefore: before,
+      quantityAfter: item.quantity,
+      reason: null,
+      note: null,
+      orderId: null,
+      restockId: null,
+      supplier: null,
+      unitCost: null,
+      createdBy: user.id,
+      createdByName: user.displayName,
+      dateKey: dateKey(at, business.timezone),
+      createdAt: at.toISOString(),
+      ...extra,
+    })
+  }
+
+  function toMovement(db: MockDb, move: MockStockMovement): StockMovement {
+    return {
+      id: move.id,
+      itemId: move.itemId,
+      itemName: move.itemName,
+      type: move.type,
+      delta: move.delta,
+      quantityBefore: move.quantityBefore,
+      quantityAfter: move.quantityAfter,
+      reason: isAdjustReason(move.reason) ? move.reason : null,
+      note: move.note,
+      orderId: move.orderId,
+      orderNumber: move.orderId
+        ? (db.orders.find((order) => order.id === move.orderId)?.orderNumber ?? null)
+        : null,
+      restockId: move.restockId,
+      supplier: move.supplier,
+      unitCost: move.unitCost,
+      createdById: move.createdBy,
+      createdByName: move.createdByName,
+      dateKey: move.dateKey,
+      createdAt: move.createdAt,
+    }
+  }
+
+  function toSettings(business: MockBusiness): BusinessSettings {
+    return {
+      id: business.id,
+      name: business.name,
+      businessCode: business.businessCode,
+      currencyCode: business.currencyCode,
+      timezone: business.timezone,
+      address: business.address,
+      phone: business.phone,
+      receiptFooter: business.receiptFooter,
+      defaultLowStockLevel: business.defaultLowStockLevel,
+      logoUrl: business.logoUrl,
+      accessEndsAt: business.accessEndsAt,
+    }
+  }
+
+  function page<Row>(rows: Row[], offset = 0, limit = 25): Page<Row> {
+    const size = Math.min(Math.max(limit, 1), 100)
+    const start = Math.max(offset, 0)
+    return { rows: rows.slice(start, start + size), total: rows.length }
+  }
+
+  const isWholeIn = (value: unknown, min: number, max: number): value is number =>
+    typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+
   /** A cart from the browser: merged, whole numbers, at least one line. */
   function cartFrom(lines: readonly CartLine[]): CartLine[] {
     const normalized = normalizeCart(lines)
@@ -568,6 +669,9 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           suspendedAt: null,
           suspendedReason: null,
           orderCounter: 0,
+          receiptFooter: null,
+          defaultLowStockLevel: 5,
+          logoUrl: null,
         })
         db.users.push({
           id: ownerId,
@@ -601,6 +705,293 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           )
           .map(toItem)
           .sort((a, b) => a.name.localeCompare(b.name))
+      },
+
+      async costs() {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        return Object.fromEntries(
+          db.itemCosts
+            .filter((cost) => cost.businessId === business.id)
+            .map((cost) => [cost.itemId, cost.costPrice]),
+        )
+      },
+
+      async upsert(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner'])
+        const name = cleanText(input.name)
+        const category = optional(input.category, STOCK_LIMITS.categoryMax)
+        const unit = optional(input.unit, STOCK_LIMITS.unitMax)
+        if (
+          !input.itemId ||
+          !name ||
+          name.length > STOCK_LIMITS.itemNameMax ||
+          !isWholeIn(input.price, 0, STOCK_LIMITS.maxPrice) ||
+          (input.costPrice !== null && !isWholeIn(input.costPrice, 0, STOCK_LIMITS.maxPrice)) ||
+          (input.lowStockLevel !== null &&
+            !isWholeIn(input.lowStockLevel, 0, STOCK_LIMITS.maxLowStockLevel)) ||
+          !isWholeIn(input.openingQuantity, 0, STOCK_LIMITS.maxQuantity)
+        ) {
+          fail('validation')
+        }
+
+        const sameId = db.items.find((item) => item.id === input.itemId)
+        // An id that belongs to another business is refused, never edited.
+        if (sameId && sameId.businessId !== business.id) fail('conflict')
+        const clash = db.items.find(
+          (item) =>
+            item.businessId === business.id &&
+            item.id !== input.itemId &&
+            item.name.toLowerCase() === name.toLowerCase(),
+        )
+        if (clash) fail('item_name_taken')
+
+        const at = now().toISOString()
+        let item = sameId
+        if (item) {
+          // Editing never changes quantity: that is what restocks and adjustments are for.
+          Object.assign(item, {
+            name,
+            category,
+            unit,
+            price: input.price,
+            lowStockLevel: input.lowStockLevel ?? item.lowStockLevel,
+            updatedAt: at,
+          })
+        } else {
+          item = {
+            id: input.itemId,
+            businessId: business.id,
+            name,
+            category,
+            unit,
+            price: input.price,
+            quantity: 0,
+            lowStockLevel: input.lowStockLevel ?? business.defaultLowStockLevel,
+            active: true,
+            createdAt: at,
+            updatedAt: at,
+          }
+          db.items.push(item)
+          if (input.openingQuantity > 0) {
+            moveStock(db, business, user, item, 'opening', input.openingQuantity)
+          }
+        }
+
+        db.itemCosts = db.itemCosts.filter((cost) => cost.itemId !== item.id)
+        if (input.costPrice !== null) {
+          db.itemCosts.push({
+            itemId: item.id,
+            businessId: business.id,
+            costPrice: input.costPrice,
+          })
+        }
+        store.write(db)
+        return toItem(item)
+      },
+
+      async archive(itemId) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const item = db.items.find(
+          (candidate) => candidate.id === itemId && candidate.businessId === business.id,
+        )
+        if (!item) fail('not_found')
+        item.active = false
+        item.updatedAt = now().toISOString()
+        store.write(db)
+      },
+
+      async restore(itemId) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const item = db.items.find(
+          (candidate) => candidate.id === itemId && candidate.businessId === business.id,
+        )
+        if (!item) fail('not_found')
+        item.active = true
+        item.updatedAt = now().toISOString()
+        store.write(db)
+      },
+    },
+
+    stock: {
+      async restock(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner'])
+        if (!input.clientId) fail('validation')
+
+        // Already saved: a retry or a double tap. Nothing is added twice.
+        const existing = db.restocks.find(
+          (restock) => restock.businessId === business.id && restock.clientId === input.clientId,
+        )
+        if (existing) return { restockId: existing.id }
+
+        const today = todayKey(business)
+        const supplier = optional(input.supplier, STOCK_LIMITS.supplierMax)
+        const note = optional(input.note, STOCK_LIMITS.noteMax)
+        if (
+          !isDateKey(input.receivedOn) ||
+          input.receivedOn > today ||
+          input.receivedOn < addDays(today, -STOCK_LIMITS.restockMaxAgeDays) ||
+          input.lines.length > STOCK_LIMITS.maxRestockLines ||
+          restockLinesProblem(input.lines) !== null ||
+          input.lines.some(
+            (line) => line.unitCost !== null && !isWholeIn(line.unitCost, 0, STOCK_LIMITS.maxPrice),
+          )
+        ) {
+          fail('validation')
+        }
+
+        const items = input.lines.map((line) => {
+          const item = db.items.find(
+            (candidate) => candidate.id === line.itemId && candidate.businessId === business.id,
+          )
+          if (!item) fail('not_found')
+          if (!item.active) fail('item_archived')
+          return item
+        })
+
+        const restockId = `restock-${crypto.randomUUID()}`
+        db.restocks.push({
+          id: restockId,
+          businessId: business.id,
+          clientId: input.clientId,
+          supplier,
+          note,
+          receivedOn: input.receivedOn,
+          createdBy: user.id,
+          createdByName: user.displayName,
+          createdAt: now().toISOString(),
+        })
+        input.lines.forEach((line, index) => {
+          moveStock(db, business, user, items[index]!, 'restock', line.quantity, {
+            restockId,
+            supplier,
+            unitCost: line.unitCost,
+            note,
+          })
+        })
+        store.write(db)
+        return { restockId }
+      },
+
+      async adjust(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner'])
+        const note = optional(input.note, STOCK_LIMITS.noteMax)
+        if (
+          !isAdjustReason(input.reason) ||
+          !isWholeIn(input.countedQuantity, 0, STOCK_LIMITS.maxQuantity) ||
+          !Number.isInteger(input.expectedQuantity) ||
+          (input.reason === 'other' && !note)
+        ) {
+          fail('validation')
+        }
+        const item = db.items.find(
+          (candidate) => candidate.id === input.itemId && candidate.businessId === business.id,
+        )
+        if (!item) fail('not_found')
+        // The count was made against a different number: someone sold or restocked meanwhile.
+        if (item.quantity !== input.expectedQuantity) fail('conflict', { quantity: item.quantity })
+        if (input.countedQuantity === item.quantity) fail('validation')
+
+        moveStock(db, business, user, item, 'adjustment', input.countedQuantity - item.quantity, {
+          reason: input.reason,
+          note,
+        })
+        store.write(db)
+        return toItem(item)
+      },
+
+      async movements(filter) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const rows = db.stockMovements
+          .filter(
+            (move) =>
+              move.businessId === business.id &&
+              (!filter.itemId || move.itemId === filter.itemId) &&
+              (!filter.type || move.type === filter.type) &&
+              (!filter.from || move.dateKey >= filter.from) &&
+              (!filter.to || move.dateKey <= filter.to) &&
+              (!filter.userId || move.createdBy === filter.userId),
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+          .map((move) => toMovement(db, move))
+        return page(rows, filter.offset, filter.limit)
+      },
+    },
+
+    reports: {
+      async dashboard() {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const today = todayKey(business)
+        const orders = db.orders.filter((order) => order.businessId === business.id)
+        return {
+          today: summarizeDay(orders, today),
+          yesterday: summarizeDay(orders, addDays(today, -1)),
+          topItemsToday: itemSales(orders, (order) => order.dateKey === today).slice(0, 5),
+          lowStock: db.items
+            .filter(
+              (item) =>
+                item.businessId === business.id &&
+                item.active &&
+                item.quantity <= item.lowStockLevel,
+            )
+            .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
+            .slice(0, 10)
+            .map(toItem),
+        }
+      },
+    },
+
+    business: {
+      async get() {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner', 'staff'])
+        return toSettings(business)
+      },
+
+      async update(input) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const name = cleanText(input.name)
+        const currency = input.currencyCode.trim().toUpperCase()
+        let currencyKnown = true
+        try {
+          new Intl.NumberFormat('en', { style: 'currency', currency })
+        } catch {
+          currencyKnown = false
+        }
+        if (
+          !name ||
+          name.length < LIMITS.businessNameMin ||
+          name.length > LIMITS.businessNameMax ||
+          !/^[A-Z]{3}$/.test(currency) ||
+          !currencyKnown ||
+          !isValidTimeZone(input.timezone) ||
+          !isWholeIn(input.defaultLowStockLevel, 0, STOCK_LIMITS.maxLowStockLevel) ||
+          (typeof input.logo === 'string' &&
+            (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.logo) ||
+              input.logo.length > 300_000))
+        ) {
+          fail('validation')
+        }
+        Object.assign(business, {
+          name,
+          currencyCode: currency,
+          timezone: input.timezone,
+          address: optional(input.address, 200),
+          phone: optional(input.phone, LIMITS.phoneMax),
+          receiptFooter: optional(input.receiptFooter, 200),
+          defaultLowStockLevel: input.defaultLowStockLevel,
+          ...(input.logo === undefined ? {} : { logoUrl: input.logo }),
+        })
+        store.write(db)
+        return toSettings(business)
       },
     },
 
@@ -741,6 +1132,58 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         }
         return toOrder(order)
       },
+
+      async list(filter) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        if (!isDateKey(filter.from) || !isDateKey(filter.to) || filter.from > filter.to) {
+          fail('validation')
+        }
+        const searchNumber = filter.search?.replace(/[#\s]/g, '')
+        const wanted = searchNumber ? Number.parseInt(searchNumber, 10) : null
+        const rows = db.orders
+          .filter(
+            (order) =>
+              order.businessId === business.id &&
+              order.dateKey >= filter.from &&
+              order.dateKey <= filter.to &&
+              (!filter.staffId || order.staffId === filter.staffId) &&
+              (!filter.status || order.status === filter.status) &&
+              (!filter.paymentMethod || order.paymentMethod === filter.paymentMethod) &&
+              (wanted === null || Number.isNaN(wanted) || order.orderNumber === wanted),
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .map(toOrder)
+        return page(rows, filter.offset, filter.limit)
+      },
+
+      async void({ orderId, reason }) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner'])
+        const order = db.orders.find(
+          (candidate) => candidate.id === orderId && candidate.businessId === business.id,
+        )
+        if (!order) fail('not_found')
+        const why = cleanText(reason)
+        if (!why || why.length > STOCK_LIMITS.voidReasonMax) fail('validation')
+        if (order.status !== 'completed') fail('conflict')
+
+        // Stock goes back, with a ledger entry per line. The order is kept, marked voided.
+        for (const line of order.lines) {
+          const item = db.items.find((candidate) => candidate.id === line.itemId)
+          if (item)
+            moveStock(db, business, user, item, 'void', line.quantity, { orderId: order.id })
+        }
+        Object.assign(order, {
+          status: 'voided',
+          voidedAt: now().toISOString(),
+          voidedBy: user.id,
+          voidedByName: user.displayName,
+          voidReason: why,
+        })
+        store.write(db)
+        return toOrder(order)
+      },
     },
 
     held: {
@@ -862,6 +1305,33 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           lastLoginAt: null,
         }
         db.users.push(staff)
+        store.write(db)
+        return toStaffMember(staff)
+      },
+
+      async resetPassword({ staffId, newPassword }) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const staff = db.users.find(
+          (user) => user.id === staffId && user.businessId === business.id && user.role === 'staff',
+        )
+        if (!staff) fail('not_found')
+        if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX)
+          fail('weak_password')
+        const salt = newSalt()
+        staff.passwordSalt = salt
+        staff.passwordHash = await hashPassword(newPassword, salt)
+        store.write(db)
+      },
+
+      async setActive({ staffId, active }) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const staff = db.users.find(
+          (user) => user.id === staffId && user.businessId === business.id && user.role === 'staff',
+        )
+        if (!staff) fail('not_found')
+        staff.active = active
         store.write(db)
         return toStaffMember(staff)
       },

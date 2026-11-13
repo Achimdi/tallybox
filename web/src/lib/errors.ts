@@ -109,6 +109,14 @@ const USER_MESSAGES = {
     title: 'An item is no longer sold',
     description: 'Remove it from the cart, then try again.',
   },
+  item_name_taken: {
+    title: 'An item with that name already exists',
+    description: 'Use a different name, or edit the existing item (it may be archived).',
+  },
+  item_archived: {
+    title: 'That item is archived',
+    description: 'Restore it first, then try again.',
+  },
   wrong_password: {
     title: "Your current password isn't right",
     description: 'Check it and try again.',

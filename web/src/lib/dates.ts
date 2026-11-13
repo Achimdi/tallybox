@@ -47,6 +47,19 @@ export function addDays(key: string, days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** The Monday on or before a date key: weeks run Monday to Sunday. */
+export function weekStart(key: string): string {
+  if (!isDateKey(key)) throw new RangeError('Invalid date key')
+  const weekday = new Date(`${key}T00:00:00Z`).getUTCDay() // 0 = Sunday
+  return addDays(key, -((weekday + 6) % 7))
+}
+
+/** The first day of the month of a date key. */
+export function monthStart(key: string): string {
+  if (!isDateKey(key)) throw new RangeError('Invalid date key')
+  return `${key.slice(0, 8)}01`
+}
+
 /** "11 Nov 2026" */
 export function formatDate(date: Date, timeZone: string, locale = DEFAULT_LOCALE): string {
   return new Intl.DateTimeFormat(locale, {

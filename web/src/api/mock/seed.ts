@@ -104,6 +104,9 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
     suspendedAt: null,
     suspendedReason: null,
     orderCounter: 0,
+    receiptFooter: null,
+    defaultLowStockLevel: 5,
+    logoUrl: null,
     ...fields,
   })
 
@@ -131,6 +134,7 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
       accessEndsAt: at(5),
       phone: '0801 000 0001',
       address: '12 Example Street, Lagos',
+      receiptFooter: 'Thank you for shopping with us. Goods sold in good condition.',
       createdAt: at(-85),
     }),
     business({
@@ -321,6 +325,7 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
     stockMovements: sales.stockMovements,
     orders: sales.orders,
     heldOrders: sales.heldOrders,
+    restocks: sales.restocks,
     rateLimits: {},
   }
 }

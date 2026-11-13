@@ -1,6 +1,7 @@
 import type { BusinessStatus } from '@/domain/access'
 import type { StoredCodeStatus } from '@/domain/activationCodes'
 import type { PaymentMethod } from '@/domain/orders'
+import type { MovementType } from '@/domain/stock'
 import type { RateCounters } from '@/domain/rateLimit'
 
 /**
@@ -13,7 +14,7 @@ import type { RateCounters } from '@/domain/rateLimit'
 
 export const STORAGE_KEY = 'tb.demo.v1'
 // Bump when the shape changes: older demo data in a browser is then replaced by the new seed.
-const VERSION = 2
+const VERSION = 3
 
 export interface MockBusiness {
   id: string
@@ -34,6 +35,10 @@ export interface MockBusiness {
   suspendedReason: string | null
   /** The last order number used. Each new order takes the next one. */
   orderCounter: number
+  receiptFooter: string | null
+  defaultLowStockLevel: number
+  /** A small image as a data URL (demo only). */
+  logoUrl: string | null
 }
 
 export interface MockUser {
@@ -90,7 +95,7 @@ export interface MockItemCost {
   costPrice: number
 }
 
-export type MovementType = 'opening' | 'sale' | 'void' | 'restock' | 'adjustment'
+export type { MovementType }
 
 /** The stock ledger. Append-only: rows are never changed or removed. */
 export interface MockStockMovement {
@@ -162,6 +167,19 @@ export interface MockHeldOrder {
   lines: { itemId: string; quantity: number }[]
 }
 
+/** One delivery. Its lines are the 'restock' stock movements. */
+export interface MockRestock {
+  id: string
+  businessId: string
+  clientId: string
+  supplier: string | null
+  note: string | null
+  receivedOn: string
+  createdBy: string
+  createdByName: string
+  createdAt: string
+}
+
 export interface MockDb {
   version: typeof VERSION
   businesses: MockBusiness[]
@@ -172,6 +190,7 @@ export interface MockDb {
   stockMovements: MockStockMovement[]
   orders: MockOrder[]
   heldOrders: MockHeldOrder[]
+  restocks: MockRestock[]
   rateLimits: RateCounters
 }
 

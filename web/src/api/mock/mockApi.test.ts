@@ -3,6 +3,7 @@ import { AppError } from '@/lib/errors'
 import { createTestApi, DEMO } from '@/test/mockApi'
 import { describeAccountsContract } from '../contract/accounts.contract'
 import { describeOrdersContract } from '../contract/orders.contract'
+import { describeOwnerContract } from '../contract/owner.contract'
 import { createMockApi } from './mockApi'
 import { memoryStorage, STORAGE_KEY, type MockDb } from './store'
 
@@ -156,6 +157,17 @@ describe('mock data layer: the demo itself', () => {
 })
 
 describeOrdersContract('mock', async () => {
+  const test = createTestApi()
+  return Promise.resolve({
+    api: test.api,
+    otherBrowser: test.otherBrowser,
+    owner: DEMO.owner,
+    staffA: DEMO.staff,
+    staffB: { ...DEMO.staff, username: 'bola' },
+  })
+})
+
+describeOwnerContract('mock', async () => {
   const test = createTestApi()
   return Promise.resolve({
     api: test.api,
