@@ -39,13 +39,13 @@ export function ItemCard({
   const body = (
     <>
       <span className="flex items-start justify-between gap-2">
-        <span className="line-clamp-2 text-body font-semibold text-ink">{name}</span>
+        <span className="line-clamp-2 text-body font-semibold text-ink">
+          {readOnly ? null : <span className="sr-only">Add</span>} {name}
+        </span>
         {inCart > 0 ? (
-          <span
-            aria-label={`${inCart} in cart`}
-            className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-grey-900 tabular-nums"
-          >
+          <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-grey-900 tabular-nums">
             {inCart}
+            <span className="sr-only"> in cart</span>
           </span>
         ) : null}
       </span>
@@ -77,7 +77,8 @@ export function ItemCard({
       type="button"
       onClick={onAdd}
       disabled={outOfStock || atLimit}
-      aria-label={`Add ${name}`}
+      // The visible text is the button's name ("Add Water ₦300 24 in stock"),
+      // so people using voice control can say what they see (WCAG 2.5.3).
       className={cn(
         classes,
         'transition-[border-color,box-shadow,transform] duration-150',

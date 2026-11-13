@@ -78,7 +78,7 @@ describe('ItemCard', () => {
     const onAdd = vi.fn()
     render(<ItemCard {...base} quantity={20} onAdd={onAdd} />)
     expect(screen.getByText('₦250.00')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Add Bottled water' }))
+    await userEvent.click(screen.getByRole('button', { name: /^Add Bottled water/ }))
     expect(onAdd).toHaveBeenCalledOnce()
   })
 
@@ -90,7 +90,7 @@ describe('ItemCard', () => {
   it('cannot be tapped when out of stock', async () => {
     const onAdd = vi.fn()
     render(<ItemCard {...base} quantity={0} onAdd={onAdd} />)
-    const card = screen.getByRole('button', { name: 'Add Bottled water' })
+    const card = screen.getByRole('button', { name: /^Add Bottled water/ })
     expect(card).toBeDisabled()
     expect(screen.getByText('Out of stock')).toBeInTheDocument()
     await userEvent.click(card)
@@ -99,7 +99,7 @@ describe('ItemCard', () => {
 
   it('cannot add more than the stock on hand', () => {
     render(<ItemCard {...base} quantity={2} inCart={2} onAdd={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Add Bottled water' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^Add Bottled water/ })).toBeDisabled()
   })
 })
 

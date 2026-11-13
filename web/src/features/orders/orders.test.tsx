@@ -79,7 +79,7 @@ describe('new order', () => {
 
   it('cannot add an out-of-stock item, and flags low stock', async () => {
     await asStaff('/staff/new-order')
-    expect(await screen.findByRole('button', { name: 'Add Malaria test kit' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: /^Add Malaria test kit/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Add Vitamin C/ })).toHaveTextContent('Low: 3 left')
   })
 
