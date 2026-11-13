@@ -24,6 +24,14 @@ const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
 const SuspendedPage = lazy(() => import('@/features/auth/SuspendedPage'))
 
+// Selling (staff now; owners too from step 1C)
+const NewOrderPage = lazy(() => import('@/features/orders/NewOrderPage'))
+const OrderSuccessPage = lazy(() => import('@/features/orders/OrderSuccessPage'))
+const MyOrdersPage = lazy(() => import('@/features/orders/MyOrdersPage'))
+const OrderDetailPage = lazy(() => import('@/features/orders/OrderDetailPage'))
+const StaffItemsPage = lazy(() => import('@/features/items/StaffItemsPage'))
+const ProfilePage = lazy(() => import('@/features/profile/ProfilePage'))
+
 // Owner
 const OwnerHomePage = lazy(() => import('@/features/business/OwnerHomePage'))
 const CreateStaffPage = lazy(() => import('@/features/staff/CreateStaffPage'))
@@ -83,10 +91,12 @@ export const routes: RouteObject[] = [
             element: <PortalLayout portal="staff" />,
             children: [
               { index: true, element: <Navigate to="new-order" replace /> },
-              { path: 'new-order', element: <PhasePlaceholder title="New order" phase={3} /> },
-              { path: 'orders', element: <PhasePlaceholder title="My orders" phase={3} /> },
-              { path: 'items', element: <PhasePlaceholder title="Items" phase={2} /> },
-              { path: 'profile', element: <PhasePlaceholder title="Profile" phase={5} /> },
+              { path: 'new-order', Component: NewOrderPage },
+              { path: 'orders', Component: MyOrdersPage },
+              { path: 'orders/:orderId', Component: OrderDetailPage },
+              { path: 'orders/:orderId/done', Component: OrderSuccessPage },
+              { path: 'items', Component: StaffItemsPage },
+              { path: 'profile', Component: ProfilePage },
             ],
           },
         ],

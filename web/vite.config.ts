@@ -174,6 +174,8 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     restoreMocks: true,
+    // Full flows (sign in, sell, confirm) run several screens in one test.
+    testTimeout: 20_000,
     // Tests never use your real project settings, even if .env.local exists.
     env: {
       VITE_DATA_SOURCE: 'mock',
