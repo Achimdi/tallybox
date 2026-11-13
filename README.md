@@ -10,13 +10,13 @@ Online inventory and sales for small shops, pharmacies and restaurants. A websit
 
 ## Status and plan
 
-| Phase                               | What                                                                                                                      | Status                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                    |
-| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | 1A built (sign-in, developer portal), awaiting approval |
-| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                                             |
-| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                             |
-| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                             |
+| Phase                               | What                                                                                                                      | Status                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                |
+| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | 1A done; 1B built (staff portal), awaiting approval |
+| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                                         |
+| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                         |
+| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                         |
 
 Backend code written early (database migrations, Edge Functions, 198 database tests) is parked on the `backend-draft` branch for Phase 2.
 
@@ -35,7 +35,7 @@ Nothing else is needed in Phase 1: no accounts, no keys, no database. The app ru
 
 - **Developer** (`dev@demo.tallybox.test`): businesses, activation codes, suspend, extend access, reset links.
 - **Owner** of Sunrise Pharmacy (`owner@demo.tallybox.test`), whose access ends in 5 days.
-- **Staff** at business code `sunrise-demo`: `ada` works, `chidi` is turned off.
+- **Staff** at business code `sunrise-demo`: `ada` works, `chidi` is turned off. Ada can take orders (New order), hold them while a transfer arrives, see today's orders and her held order (My orders), browse items and change her password.
 - Owners of a **suspended** business and of one whose **access has ended**.
 
 To try the whole activation flow: sign in as the developer, generate a code, sign out, register a business with that code and email, then sign in as its owner. Open a second tab to be two people at once (each tab has its own sign-in, and both share the demo data). **Reset demo data** on the welcome page puts everything back.
