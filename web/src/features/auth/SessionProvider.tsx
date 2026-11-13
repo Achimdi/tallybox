@@ -127,9 +127,11 @@ export function SessionProvider({ children, initial, initialBlocked }: SessionPr
 
   const clearBlocked = useCallback(() => setBlocked(null), [])
 
+  const refresh = useCallback(() => recheck(true), [recheck])
+
   const value = useMemo<SessionContextValue>(
-    () => ({ session, blocked, clearBlocked, signIn, signOut }),
-    [session, blocked, clearBlocked, signIn, signOut],
+    () => ({ session, blocked, clearBlocked, signIn, signOut, refresh }),
+    [session, blocked, clearBlocked, signIn, signOut, refresh],
   )
 
   return <SessionContext value={value}>{children}</SessionContext>

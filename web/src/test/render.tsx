@@ -102,6 +102,7 @@ export function renderPage(
     clearBlocked: () => undefined,
     signIn: () => Promise.resolve(),
     signOut: () => undefined,
+    refresh: () => Promise.resolve(),
     ...session,
   }
   const router = createMemoryRouter([{ path: '*', element: page }], {

@@ -14,6 +14,8 @@ export interface SessionContextValue {
   /** Signs in. Throws an AppError with a friendly code when it fails. */
   signIn: (input: SignInInput) => Promise<void>
   signOut: () => void
+  /** Asks the data layer again, for example after the business name or currency changed. */
+  refresh: () => Promise<void>
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null)

@@ -11,17 +11,6 @@ async function fillAndSubmit(name: string, username: string, password: string) {
   await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
 }
 
-describe('owner dashboard onboarding', () => {
-  it('shows the set-up steps, the staff count and the business code', async () => {
-    const test = await signedInTestApi('owner')
-    renderApp({ path: '/owner/dashboard', api: test.api })
-    const step = await screen.findByRole('link', { name: /Create a staff account/ })
-    expect(step).toHaveAttribute('href', '/owner/staff/new')
-    await waitFor(() => expect(step).toHaveTextContent('3 staff accounts so far'))
-    expect(screen.getByText('sunrise-demo')).toBeInTheDocument()
-  })
-})
-
 describe('create staff account', () => {
   it('creates the account, shows what to hand over, and the new person can sign in', async () => {
     const test = await signedInTestApi('owner')

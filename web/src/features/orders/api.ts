@@ -1,6 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { useApi } from '@/api/context'
-import type { CreateOrderInput, SaveHeldOrderInput } from '@/api/types'
+import type { CreateOrderInput, OrderFilter, SaveHeldOrderInput } from '@/api/types'
 import { ITEMS_KEY } from '@/features/items/api'
 
 const KEYS = {
@@ -36,6 +42,8 @@ export function useCreateOrder() {
         queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: KEYS.held }),
+        queryClient.invalidateQueries({ queryKey: ['stock'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
     },
   })
@@ -56,5 +64,40 @@ export function useDiscardHeldOrder() {
   return useMutation({
     mutationFn: (heldOrderId: string) => api.held.discard(heldOrderId),
     onSettled: () => queryClient.invalidateQueries({ queryKey: KEYS.held }),
+  })
+}
+
+const ORDER_PAGE_SIZE = 25
+
+/** Owner: every order matching the filter, newest first, a page at a time. */
+export function useOrderList(filter: Omit<OrderFilter, 'offset' | 'limit'>) {
+  const api = useApi()
+  return useInfiniteQuery({
+    queryKey: ['orders', 'list', filter],
+    // Keep showing the last results while a changed filter loads, instead of flashing a skeleton.
+    placeholderData: keepPreviousData,
+    queryFn: ({ pageParam }) =>
+      api.orders.list({ ...filter, offset: pageParam, limit: ORDER_PAGE_SIZE }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.rows.length, 0)
+      return loaded < last.total ? loaded : undefined
+    },
+  })
+}
+
+export function useVoidOrder() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { orderId: string; reason: string }) => api.orders.void(input),
+    onSuccess: (order) => queryClient.setQueryData(['orders', 'one', order.id], order),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['stock'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]),
   })
 }

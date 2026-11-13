@@ -1,15 +1,24 @@
-import type { ReactNode } from 'react'
+import { Ban } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router'
+import type { Order } from '@/api/types'
 import { Banner } from '@/components/Banner'
 import { BackLink } from '@/components/BackLink'
+import { Button } from '@/components/Button'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Money } from '@/components/Money'
 import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { StatusChip } from '@/components/StatusChip'
+import { TextField } from '@/components/TextField'
+import { useToast } from '@/components/toast-context'
 import { formatOrderNumber, paymentMethodLabel } from '@/domain/orders'
+import { STOCK_LIMITS } from '@/domain/stock'
 import { useSessionUser } from '@/features/auth/session'
 import { formatDateTime } from '@/lib/dates'
-import { useOrder } from './api'
+import { userMessage, toAppError } from '@/lib/errors'
+import { useOnlineStatus } from '@/lib/useOnlineStatus'
+import { useOrder, useVoidOrder } from './api'
 import { portalBase } from './portal'
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
@@ -18,6 +27,80 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-label font-normal text-ink-muted">{label}</dt>
       <dd className="text-body break-words text-ink">{children}</dd>
     </div>
+  )
+}
+
+/** Owner only: cancel a completed order. Its stock goes back and it stays on record as voided. */
+function VoidOrder({ order }: { order: Order }) {
+  const toast = useToast()
+  const online = useOnlineStatus()
+  const voidOrder = useVoidOrder()
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [problem, setProblem] = useState<string | undefined>()
+
+  const confirm = () => {
+    if (reason.trim() === '') {
+      setProblem('Say why it is being voided.')
+      return
+    }
+    voidOrder.mutate(
+      { orderId: order.id, reason },
+      {
+        onSuccess: () => {
+          setOpen(false)
+          toast({
+            title: `Order ${formatOrderNumber(order.orderNumber)} voided`,
+            description: 'Its stock was returned.',
+            tone: 'success',
+          })
+        },
+        onError: (thrown) => {
+          const message = userMessage(toAppError(thrown))
+          setProblem(`${message.title}. ${message.description}`)
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          setReason('')
+          setProblem(undefined)
+          setOpen(true)
+        }}
+        disabled={!online}
+        leadingIcon={<Ban aria-hidden="true" className="size-5" />}
+      >
+        Void order
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Void order ${formatOrderNumber(order.orderNumber)}?`}
+        description="Use this for a mistake or a refund. Its items go back into stock. The order stays on record, marked voided, and this can't be undone."
+        confirmLabel="Void order"
+        tone="danger"
+        loading={voidOrder.isPending}
+        onConfirm={confirm}
+      >
+        <TextField
+          label="Reason"
+          required
+          autoComplete="off"
+          maxLength={STOCK_LIMITS.voidReasonMax}
+          value={reason}
+          onChange={(event) => {
+            setReason(event.target.value)
+            setProblem(undefined)
+          }}
+          error={problem}
+        />
+      </ConfirmDialog>
+    </>
   )
 }
 
@@ -133,6 +216,12 @@ export default function OrderDetailPage() {
           {data.note ? <Detail label="Note">{data.note}</Detail> : null}
         </dl>
       </section>
+
+      {user.role === 'owner' && data.status === 'completed' ? (
+        <div>
+          <VoidOrder order={data} />
+        </div>
+      ) : null}
     </div>
   )
 }

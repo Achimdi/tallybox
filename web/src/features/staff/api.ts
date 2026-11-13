@@ -18,3 +18,19 @@ export function useCreateStaff() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: STAFF_KEY }),
   })
 }
+
+export function useResetStaffPassword() {
+  const api = useApi()
+  return useMutation({
+    mutationFn: (input: { staffId: string; newPassword: string }) => api.staff.resetPassword(input),
+  })
+}
+
+export function useSetStaffActive() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { staffId: string; active: boolean }) => api.staff.setActive(input),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: STAFF_KEY }),
+  })
+}

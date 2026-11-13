@@ -2,8 +2,8 @@ import { EmptyState } from './states'
 
 interface PhasePlaceholderProps {
   title: string
-  /** The build phase that delivers this screen. */
-  phase: number
+  /** The build phase or step that delivers this screen, like 2 or '1D'. */
+  phase: number | string
 }
 
 /** Stands in for a screen that a later build phase will deliver. */
@@ -15,7 +15,7 @@ export function PhasePlaceholder({ title, phase }: PhasePlaceholderProps) {
       </h1>
       <EmptyState
         title="Not built yet"
-        description={`This screen arrives in Phase ${phase}. The navigation, layout and access rules around it are already working.`}
+        description={`This screen arrives in ${typeof phase === 'number' ? 'Phase' : 'step'} ${phase}. The navigation, layout and access rules around it are already working.`}
       />
     </section>
   )

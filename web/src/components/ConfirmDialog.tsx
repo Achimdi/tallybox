@@ -1,4 +1,5 @@
 import { AlertDialog } from 'radix-ui'
+import type { ReactNode } from 'react'
 import { Button } from './Button'
 
 interface ConfirmDialogProps {
@@ -15,6 +16,8 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   /** Shows a spinner on the confirm button and blocks both buttons. */
   loading?: boolean
+  /** Extra fields shown under the description, such as a reason to give. */
+  children?: ReactNode
 }
 
 /**
@@ -32,6 +35,7 @@ export function ConfirmDialog({
   tone = 'default',
   onConfirm,
   loading = false,
+  children,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog.Root
@@ -45,6 +49,7 @@ export function ConfirmDialog({
           <AlertDialog.Description className="text-body text-ink-muted">
             {description}
           </AlertDialog.Description>
+          {children}
           <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <AlertDialog.Cancel asChild>
               <Button variant="secondary" disabled={loading}>

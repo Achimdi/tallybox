@@ -8,11 +8,10 @@ import {
   USERNAME_MAX,
   USERNAME_MIN,
 } from '@/domain/rules'
-import { ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router'
 import { z } from 'zod'
+import { BackLink } from '@/components/BackLink'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button, ButtonLink } from '@/components/Button'
 import { ListGroup, ListItem } from '@/components/ListItem'
@@ -92,13 +91,7 @@ export default function CreateStaffPage() {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
-      <Link
-        to="/owner/dashboard"
-        className="-ml-2 inline-flex min-h-12 items-center gap-1 self-start rounded-control px-2 text-label font-semibold text-primary"
-      >
-        <ChevronLeft aria-hidden="true" className="size-5" />
-        Dashboard
-      </Link>
+      <BackLink to="/owner/staff" label="Staff" />
       <header className="flex flex-col gap-1">
         <h1 className="text-title-lg text-ink">Create staff account</h1>
         <p className="text-body text-ink-muted">
@@ -122,7 +115,7 @@ export default function CreateStaffPage() {
           </ListGroup>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button onClick={() => setCreated(null)}>Create another</Button>
-            <ButtonLink to="/owner/dashboard" variant="secondary">
+            <ButtonLink to="/owner/staff" variant="secondary">
               Done
             </ButtonLink>
           </div>

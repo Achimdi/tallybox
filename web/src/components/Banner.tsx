@@ -1,14 +1,24 @@
-import { CircleCheck, CircleExclamationPoint, Info, type LucideIcon } from 'lucide-react'
+import {
+  CircleCheck,
+  CircleExclamationPoint,
+  Info,
+  TriangleExclamationPoint,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 import { userMessage } from '@/lib/errors'
 
-type BannerTone = 'error' | 'success' | 'info'
+type BannerTone = 'error' | 'warning' | 'success' | 'info'
 
 const TONES: Record<BannerTone, { icon: LucideIcon; className: string }> = {
   error: {
     icon: CircleExclamationPoint,
     className: 'border-error bg-error-soft text-error-strong',
+  },
+  warning: {
+    icon: TriangleExclamationPoint,
+    className: 'border-warning bg-warning-soft text-warning',
   },
   success: { icon: CircleCheck, className: 'border-success bg-success-soft text-success' },
   info: { icon: Info, className: 'border-info bg-info-soft text-info' },

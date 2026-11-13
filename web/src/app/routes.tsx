@@ -24,7 +24,7 @@ const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
 const SuspendedPage = lazy(() => import('@/features/auth/SuspendedPage'))
 
-// Selling (staff now; owners too from step 1C)
+// Selling (staff and owners)
 const NewOrderPage = lazy(() => import('@/features/orders/NewOrderPage'))
 const OrderSuccessPage = lazy(() => import('@/features/orders/OrderSuccessPage'))
 const MyOrdersPage = lazy(() => import('@/features/orders/MyOrdersPage'))
@@ -34,7 +34,19 @@ const ProfilePage = lazy(() => import('@/features/profile/ProfilePage'))
 
 // Owner
 const OwnerHomePage = lazy(() => import('@/features/business/OwnerHomePage'))
+const OwnerOrdersPage = lazy(() => import('@/features/orders/OwnerOrdersPage'))
+const OwnerItemsPage = lazy(() => import('@/features/items/OwnerItemsPage'))
+const ItemFormPage = lazy(() => import('@/features/items/ItemFormPage'))
+const ItemDetailPage = lazy(() => import('@/features/items/ItemDetailPage'))
+const RestockPage = lazy(() => import('@/features/stock/RestockPage'))
+const AdjustStockPage = lazy(() => import('@/features/stock/AdjustStockPage'))
+const LedgerPage = lazy(() => import('@/features/stock/LedgerPage'))
+const StaffListPage = lazy(() => import('@/features/staff/StaffListPage'))
+const StaffDetailPage = lazy(() => import('@/features/staff/StaffDetailPage'))
 const CreateStaffPage = lazy(() => import('@/features/staff/CreateStaffPage'))
+const BusinessSettingsPage = lazy(() => import('@/features/settings/BusinessSettingsPage'))
+const MorePage = lazy(() => import('@/features/settings/MorePage'))
+const HelpPage = lazy(() => import('@/features/settings/HelpPage'))
 
 // Super-admin. Only downloaded after the guard has let the super-admin in.
 const AdminBusinessesPage = lazy(() => import('@/features/admin/AdminBusinessesPage'))
@@ -112,11 +124,25 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', Component: OwnerHomePage },
+              { path: 'new-order', Component: NewOrderPage },
+              { path: 'orders', Component: OwnerOrdersPage },
+              { path: 'orders/:orderId', Component: OrderDetailPage },
+              { path: 'orders/:orderId/done', Component: OrderSuccessPage },
+              { path: 'items', Component: OwnerItemsPage },
+              { path: 'items/new', Component: ItemFormPage },
+              { path: 'items/:itemId', Component: ItemDetailPage },
+              { path: 'items/:itemId/edit', Component: ItemFormPage },
+              { path: 'items/:itemId/adjust', Component: AdjustStockPage },
+              { path: 'restock', Component: RestockPage },
+              { path: 'ledger', Component: LedgerPage },
+              { path: 'staff', Component: StaffListPage },
               { path: 'staff/new', Component: CreateStaffPage },
-              { path: 'orders', element: <PhasePlaceholder title="Orders" phase={3} /> },
-              { path: 'items', element: <PhasePlaceholder title="Items" phase={2} /> },
-              { path: 'reports', element: <PhasePlaceholder title="Reports" phase={4} /> },
-              { path: 'more', element: <PhasePlaceholder title="More" phase={5} /> },
+              { path: 'staff/:staffId', Component: StaffDetailPage },
+              { path: 'settings', Component: BusinessSettingsPage },
+              { path: 'reports', element: <PhasePlaceholder title="Reports" phase="1D" /> },
+              { path: 'more', Component: MorePage },
+              { path: 'help', Component: HelpPage },
+              { path: 'profile', Component: ProfilePage },
             ],
           },
         ],

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import { useApi } from '@/api/context'
 import { ErrorBanner } from '@/components/Banner'
+import { BackLink } from '@/components/BackLink'
 import { Button } from '@/components/Button'
 import { ListGroup, ListItem } from '@/components/ListItem'
 import { PasswordField } from '@/components/PasswordField'
@@ -86,6 +87,7 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      {user.role === 'owner' ? <BackLink to="/owner/more" label="More" /> : null}
       <h1 className="text-title-lg text-ink">Profile</h1>
 
       <ListGroup>
