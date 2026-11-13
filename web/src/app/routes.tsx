@@ -1,6 +1,5 @@
 import { lazy } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
-import { PhasePlaceholder } from '@/components/PhasePlaceholder'
 import { WelcomePage } from '@/features/auth/WelcomePage'
 import { PublicOnly, RequireRole } from './guards'
 import { PortalLayout } from './layouts/PortalLayout'
@@ -47,6 +46,7 @@ const CreateStaffPage = lazy(() => import('@/features/staff/CreateStaffPage'))
 const BusinessSettingsPage = lazy(() => import('@/features/settings/BusinessSettingsPage'))
 const MorePage = lazy(() => import('@/features/settings/MorePage'))
 const HelpPage = lazy(() => import('@/features/settings/HelpPage'))
+const ReportsPage = lazy(() => import('@/features/reports/ReportsPage'))
 
 // Super-admin. Only downloaded after the guard has let the super-admin in.
 const AdminBusinessesPage = lazy(() => import('@/features/admin/AdminBusinessesPage'))
@@ -139,7 +139,7 @@ export const routes: RouteObject[] = [
               { path: 'staff/new', Component: CreateStaffPage },
               { path: 'staff/:staffId', Component: StaffDetailPage },
               { path: 'settings', Component: BusinessSettingsPage },
-              { path: 'reports', element: <PhasePlaceholder title="Reports" phase="1D" /> },
+              { path: 'reports', Component: ReportsPage },
               { path: 'more', Component: MorePage },
               { path: 'help', Component: HelpPage },
               { path: 'profile', Component: ProfilePage },

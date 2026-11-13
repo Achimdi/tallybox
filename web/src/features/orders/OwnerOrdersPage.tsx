@@ -20,36 +20,12 @@ import {
 } from '@/domain/orders'
 import { useSessionUser } from '@/features/auth/session'
 import { useStaffList } from '@/features/staff/api'
-import { addDays, dateKey, formatDateTime, formatTime, monthStart, weekStart } from '@/lib/dates'
+import { addDays, dateKey, formatDateTime, formatTime } from '@/lib/dates'
+import { PRESETS, rangeFor, type Preset } from '@/lib/periods'
 import { useHeldOrders, useOrderList } from './api'
 import { HeldOrdersList, itemCount } from './HeldOrdersList'
 
 type Tab = 'orders' | 'held'
-type Preset = 'today' | 'yesterday' | 'week' | 'month' | 'custom'
-
-const PRESETS: readonly { value: Preset; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'week', label: 'This week' },
-  { value: 'month', label: 'This month' },
-  { value: 'custom', label: 'Custom' },
-]
-
-function rangeFor(preset: Preset, today: string): { from: string; to: string } | null {
-  switch (preset) {
-    case 'today':
-      return { from: today, to: today }
-    case 'yesterday':
-      return { from: addDays(today, -1), to: addDays(today, -1) }
-    case 'week':
-      return { from: weekStart(today), to: today }
-    case 'month':
-      return { from: monthStart(today), to: today }
-    case 'custom':
-      return null
-  }
-}
-
 function OrdersTab() {
   const user = useSessionUser()
   const currency = user.currencyCode ?? 'NGN'

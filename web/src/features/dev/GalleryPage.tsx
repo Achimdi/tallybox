@@ -24,6 +24,9 @@ import { StatusChip } from '@/components/StatusChip'
 import { SuccessCheck } from '@/components/SuccessCheck'
 import { TextField } from '@/components/TextField'
 import { useToast } from '@/components/toast-context'
+import { Banner } from '@/components/Banner'
+import { BarList } from '@/features/reports/BarList'
+import { ColumnChart } from '@/features/reports/ColumnChart'
 import { AppError } from '@/lib/errors'
 import { parseMoney, sumMinor } from '@/lib/money'
 
@@ -418,6 +421,50 @@ export default function GalleryPage() {
           </div>
           <div className="rounded-card border border-line bg-surface-raised">
             <PermissionDenied />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Banners">
+        <div className="flex flex-col gap-3">
+          <Banner tone="info" title="Info" description="Something worth knowing." />
+          <Banner tone="success" title="Success" description="It worked." />
+          <Banner tone="warning" title="Warning" description="Check this before you go on." />
+          <Banner tone="error" title="Error" description="Something went wrong." />
+        </div>
+      </Section>
+
+      <Section title="Report charts">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-card border border-line bg-surface-raised p-4">
+            <ColumnChart
+              title="Sales by day"
+              formatTick={(value) => `₦${value / 100}`}
+              columns={[120000, 45000, 0, 98000, 150000, 60000, 30000].map((value, index) => ({
+                key: String(index),
+                label: `Nov ${index + 7}`,
+                fullLabel: `Nov ${index + 7}, 2026`,
+                value,
+                valueText: `₦${(value / 100).toFixed(2)}`,
+                detail: `${index + 2} orders`,
+              }))}
+            />
+          </div>
+          <div className="rounded-card border border-line bg-surface-raised p-4">
+            <BarList
+              label="By payment method"
+              rows={[
+                {
+                  key: 'cash',
+                  label: 'Cash',
+                  value: 174000,
+                  valueText: '₦1,740.00',
+                  detail: '21 orders',
+                },
+                { key: 'bank', label: 'Bank transfer', value: 128350, valueText: '₦1,283.50' },
+                { key: 'card', label: 'Card machine', value: 0, valueText: '₦0.00' },
+              ]}
+            />
           </div>
         </div>
       </Section>

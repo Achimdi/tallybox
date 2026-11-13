@@ -80,3 +80,19 @@ export function lineTotal(unitPrice: number, qty: number): number {
 export function sumMinor(amounts: readonly number[]): number {
   return amounts.reduce((total, amount) => total + amount, 0)
 }
+
+/** Short amounts for chart axes: ₦0, ₦500, ₦12K, ₦1.2M. */
+export function formatMoneyCompact(
+  minor: number,
+  currency: string,
+  locale = DEFAULT_LOCALE,
+): string {
+  const digits = minorUnitDigits(currency)
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    currencyDisplay: 'narrowSymbol',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(minor / 10 ** digits)
+}
