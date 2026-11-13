@@ -106,7 +106,7 @@ test('activation code flow, end to end', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill('fresh-pass-1')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/owner/dashboard')
-  await expect(page.getByText('fresh-foods')).toBeVisible()
+  await expect(page.getByText(/business code: fresh-foods/)).toBeVisible()
   await signOut(page)
 
   // 4. The developer sees it, and the code is used.
