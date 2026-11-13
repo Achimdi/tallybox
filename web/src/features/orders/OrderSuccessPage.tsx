@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/states'
 import { SuccessCheck } from '@/components/SuccessCheck'
 import { formatOrderNumber, paymentMethodLabel } from '@/domain/orders'
 import { useSessionUser } from '@/features/auth/session'
+import { ReceiptActions } from '@/features/receipts/ReceiptActions'
 import { useOrder } from './api'
 import { portalBase } from './portal'
 
@@ -49,11 +50,12 @@ export default function OrderSuccessPage() {
         currency={user.currencyCode ?? 'NGN'}
         className="text-display text-ink"
       />
-      <div className="flex w-full flex-col gap-3">
-        <ButtonLink to={`${base}/new-order`} size="lg" fullWidth>
+      <ReceiptActions order={data} />
+      <div className="flex w-full flex-col gap-3 border-t border-line pt-6">
+        <ButtonLink to={`${base}/new-order`} size="lg" variant="secondary" fullWidth>
           New order
         </ButtonLink>
-        <ButtonLink to={`${base}/orders/${data.id}`} variant="secondary" fullWidth>
+        <ButtonLink to={`${base}/orders/${data.id}`} variant="ghost" fullWidth>
           View order
         </ButtonLink>
       </div>

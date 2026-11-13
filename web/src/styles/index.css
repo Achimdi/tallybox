@@ -68,8 +68,27 @@
   }
 }
 
+/* Receipt printing: only the receipt layer is printed, on white, in black. */
+#print-root {
+  display: none;
+}
+
 @media print {
   .no-print {
     display: none !important;
+  }
+
+  html.printing-receipt body {
+    background: #fff !important;
+  }
+
+  html.printing-receipt body > :not(#print-root) {
+    display: none !important;
+  }
+
+  html.printing-receipt #print-root {
+    display: block;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

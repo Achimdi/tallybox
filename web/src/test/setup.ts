@@ -35,3 +35,8 @@ if (typeof window.matchMedia !== 'function') {
     dispatchEvent: () => false,
   })
 }
+
+// jsdom has no canvas drawing. Say so quietly (receipts then take their
+// "couldn't be made" path) instead of printing "Not implemented" errors.
+HTMLCanvasElement.prototype.getContext = (() =>
+  null) as typeof HTMLCanvasElement.prototype.getContext

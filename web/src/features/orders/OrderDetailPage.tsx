@@ -15,6 +15,7 @@ import { useToast } from '@/components/toast-context'
 import { formatOrderNumber, paymentMethodLabel } from '@/domain/orders'
 import { STOCK_LIMITS } from '@/domain/stock'
 import { useSessionUser } from '@/features/auth/session'
+import { ReceiptActions } from '@/features/receipts/ReceiptActions'
 import { formatDateTime } from '@/lib/dates'
 import { userMessage, toAppError } from '@/lib/errors'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
@@ -215,6 +216,13 @@ export default function OrderDetailPage() {
           {data.customerPhone ? <Detail label="Customer phone">{data.customerPhone}</Detail> : null}
           {data.note ? <Detail label="Note">{data.note}</Detail> : null}
         </dl>
+      </section>
+
+      <section aria-labelledby="receipt-title" className="flex flex-col gap-3">
+        <h2 id="receipt-title" className="text-title text-ink">
+          Receipt
+        </h2>
+        <ReceiptActions order={data} />
       </section>
 
       {user.role === 'owner' && data.status === 'completed' ? (
