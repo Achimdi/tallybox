@@ -1,5 +1,6 @@
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useApi } from '@/api/context'
 import { env } from '@/lib/env'
 
 interface TurnstileControl {
@@ -17,11 +18,13 @@ interface TurnstileControl {
  * Cloudflare Turnstile: a free "are you a person?" check for the login and
  * registration forms. The token it produces is verified on the server (by
  * Supabase Auth for sign-in, and by the Edge Function for registration).
+ * The demo data layer has no server to check it, so the widget is off there.
  */
 export function useTurnstile(): TurnstileControl {
   const widget = useRef<TurnstileInstance | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const siteKey = env.turnstileSiteKey
+  const api = useApi()
+  const siteKey = api.requiresCaptcha ? env.turnstileSiteKey : undefined
 
   const reset = useCallback(() => {
     setToken(null)

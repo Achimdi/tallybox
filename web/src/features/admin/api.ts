@@ -1,104 +1,78 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { z } from 'zod'
-import { callFunction, callRpc } from '@/lib/api'
+import { useApi } from '@/api/context'
+import type { BusinessStatus } from '@/domain/access'
+import type { GenerateCodeInput } from '@/api/types'
 
-/**
- * Super-admin data. Reads go through database functions that check, live, that
- * the caller is the super-admin. Changes go through Edge Functions.
- */
-
-const businessSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  business_code: z.string(),
-  status: z.enum(['active', 'suspended']),
-  created_at: z.string(),
-  owner_email: z.string().nullable(),
-  staff_count: z.number(),
-  last_activity_at: z.string().nullable(),
-  suspended_at: z.string().nullable(),
-  suspended_reason: z.string().nullable(),
-})
-export type AdminBusiness = z.infer<typeof businessSchema>
-
-const activationCodeSchema = z.object({
-  id: z.string(),
-  owner_email: z.string(),
-  note: z.string().nullable(),
-  status: z.enum(['unused', 'used', 'revoked', 'expired']),
-  created_at: z.string(),
-  expires_at: z.string(),
-  used_at: z.string().nullable(),
-  used_by_business_name: z.string().nullable(),
-})
-export type AdminActivationCode = z.infer<typeof activationCodeSchema>
-
-const countsSchema = z.object({
-  businesses: z.number(),
-  suspended: z.number(),
-  staff: z.number(),
-  unused_codes: z.number(),
-})
-
-const generatedCodeSchema = z.object({
-  id: z.string(),
-  code: z.string(),
-  ownerEmail: z.string(),
-  expiresAt: z.string(),
-})
-export type GeneratedCode = z.infer<typeof generatedCodeSchema>
+/** Developer-portal data, all through the data layer. */
 
 const KEYS = {
   all: ['admin'] as const,
   businesses: ['admin', 'businesses'] as const,
-  codes: ['admin', 'codes'] as const,
+  business: (id: string) => ['admin', 'business', id] as const,
   counts: ['admin', 'counts'] as const,
+  codes: ['admin', 'codes'] as const,
 }
 
 export function useAdminBusinesses() {
-  return useQuery({
-    queryKey: KEYS.businesses,
-    queryFn: () => callRpc('admin_list_businesses', {}, z.array(businessSchema)),
-  })
+  const api = useApi()
+  return useQuery({ queryKey: KEYS.businesses, queryFn: () => api.admin.listBusinesses() })
 }
 
-export function useAdminActivationCodes() {
+export function useAdminBusiness(businessId: string) {
+  const api = useApi()
   return useQuery({
-    queryKey: KEYS.codes,
-    queryFn: () => callRpc('admin_list_activation_codes', {}, z.array(activationCodeSchema)),
+    queryKey: KEYS.business(businessId),
+    queryFn: () => api.admin.getBusiness(businessId),
   })
 }
 
 export function usePlatformCounts() {
-  return useQuery({
-    queryKey: KEYS.counts,
-    queryFn: () => callRpc('admin_platform_counts', {}, countsSchema),
-  })
+  const api = useApi()
+  return useQuery({ queryKey: KEYS.counts, queryFn: () => api.admin.platformCounts() })
 }
 
-export function useGenerateActivationCode() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: { ownerEmail: string; note: string; expiresInDays: number }) =>
-      callFunction('generate-activation-code', input, generatedCodeSchema),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS.all }),
-  })
+export function useAdminActivationCodes() {
+  const api = useApi()
+  return useQuery({ queryKey: KEYS.codes, queryFn: () => api.admin.listActivationCodes() })
 }
 
-export function useRevokeActivationCode() {
+/** Every change refreshes all developer data, which is small. */
+function useAdminMutation<Input, Result>(run: (input: Input) => Promise<Result>) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (codeId: string) =>
-      callFunction('revoke-activation-code', { codeId }, z.object({ revoked: z.boolean() })),
+    mutationFn: run,
     onSettled: () => queryClient.invalidateQueries({ queryKey: KEYS.all }),
   })
 }
 
 export function useSetBusinessStatus() {
-  const queryClient = useQueryClient()
+  const api = useApi()
+  return useAdminMutation(
+    (input: { businessId: string; status: BusinessStatus; reason?: string }) =>
+      api.admin.setBusinessStatus(input),
+  )
+}
+
+export function useExtendAccess() {
+  const api = useApi()
+  return useAdminMutation((input: { businessId: string; days: number | null }) =>
+    api.admin.extendAccess(input),
+  )
+}
+
+export function useOwnerResetLink() {
+  const api = useApi()
   return useMutation({
-    mutationFn: (input: { businessId: string; status: 'active' | 'suspended'; reason?: string }) =>
-      callFunction('set-business-status', input, z.object({ status: z.string() })),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: KEYS.all }),
+    mutationFn: (businessId: string) => api.admin.createOwnerResetLink(businessId),
   })
+}
+
+export function useGenerateActivationCode() {
+  const api = useApi()
+  return useAdminMutation((input: GenerateCodeInput) => api.admin.generateActivationCode(input))
+}
+
+export function useRevokeActivationCode() {
+  const api = useApi()
+  return useAdminMutation((codeId: string) => api.admin.revokeActivationCode(codeId))
 }

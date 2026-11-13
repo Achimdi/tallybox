@@ -7,6 +7,7 @@ import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { PasswordField } from '@/components/PasswordField'
 import { TextField } from '@/components/TextField'
+import { DemoAccounts } from '@/features/demo/DemoAccounts'
 import { toAppError, type AppError } from '@/lib/errors'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { AuthPage } from './AuthPage'
@@ -25,8 +26,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 /**
- * Owner sign-in. The same page signs in the super-admin. After signing in,
- * the route guard sends each role to its own home.
+ * Owner sign-in. The same page signs in the developer (super-admin). After
+ * signing in, the route guard sends each role to its own home.
  */
 export default function OwnerLoginPage() {
   const { signIn } = useSession()
@@ -41,6 +42,7 @@ export default function OwnerLoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -114,6 +116,14 @@ export default function OwnerLoginPage() {
           Forgot password?
         </Link>
       </form>
+
+      <DemoAccounts
+        portal="owner"
+        onUse={(account) => {
+          setValue('email', account.email ?? '', { shouldValidate: true })
+          setValue('password', account.password, { shouldValidate: true })
+        }}
+      />
     </AuthPage>
   )
 }

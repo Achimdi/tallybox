@@ -1,5 +1,5 @@
 import { LogOut } from 'lucide-react'
-import { Outlet } from 'react-router'
+import { Outlet, useNavigate } from 'react-router'
 import { BottomNav, SideRail } from '@/components/AppNav'
 import { LogoSymbol } from '@/components/brand/Logo'
 import { useSession } from '@/features/auth/session'
@@ -22,6 +22,7 @@ interface PortalLayoutProps {
  */
 export function PortalLayout({ portal }: PortalLayoutProps) {
   const { session, signOut } = useSession()
+  const navigate = useNavigate()
   const items = PORTAL_NAV[portal]
   const user = session.status === 'signed_in' ? session.user : null
 
@@ -49,7 +50,11 @@ export function PortalLayout({ portal }: PortalLayoutProps) {
           </div>
           <button
             type="button"
-            onClick={signOut}
+            onClick={() => {
+              // Leave first: the hidden developer area answers "not found" once signed out.
+              void navigate('/', { replace: true })
+              signOut()
+            }}
             aria-label="Sign out"
             className="flex size-12 items-center justify-center rounded-control text-ink-muted hover:bg-surface-sunken hover:text-ink"
           >

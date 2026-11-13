@@ -8,7 +8,6 @@ import {
   USERNAME_MAX,
   USERNAME_MIN,
 } from '@/domain/rules'
-import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -23,7 +22,8 @@ import { useSession } from '@/features/auth/session'
 import { useEntitlements } from '@/features/billing/useEntitlements'
 import { toAppError, userMessage, type AppError } from '@/lib/errors'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import { createStaff, useStaffCount, type CreatedStaff } from './api'
+import type { StaffMember } from '@/api/types'
+import { useCreateStaff, useStaffList } from './api'
 
 const schema = z.object({
   displayName: z
@@ -51,11 +51,11 @@ type FormOutput = z.output<typeof schema>
 export default function CreateStaffPage() {
   const { session } = useSession()
   const online = useOnlineStatus()
-  const queryClient = useQueryClient()
   const entitlements = useEntitlements()
-  const staffCount = useStaffCount()
+  const staffList = useStaffList()
+  const createStaff = useCreateStaff()
   const [error, setError] = useState<AppError | null>(null)
-  const [created, setCreated] = useState<CreatedStaff | null>(null)
+  const [created, setCreated] = useState<StaffMember | null>(null)
 
   const businessCode = session.status === 'signed_in' ? session.user.businessCode : null
 
@@ -73,10 +73,9 @@ export default function CreateStaffPage() {
   const onSubmit = handleSubmit(async (values) => {
     setError(null)
     try {
-      const staff = await createStaff(values)
+      const staff = await createStaff.mutateAsync(values)
       setCreated(staff)
       reset()
-      await queryClient.invalidateQueries({ queryKey: ['staff'] })
     } catch (thrown) {
       const appError = toAppError(thrown)
       if (appError.code === 'username_taken' || appError.code === 'username_invalid') {
@@ -89,7 +88,7 @@ export default function CreateStaffPage() {
   })
 
   // The plan-limit seam. In v1 this always allows (see docs/billing-plan.md).
-  const mayAddStaff = entitlements.canAdd('staff', staffCount.data ?? 0)
+  const mayAddStaff = entitlements.canAdd('staff', staffList.data?.length ?? 0)
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">

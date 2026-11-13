@@ -5,15 +5,16 @@ import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { StatusChip } from '@/components/StatusChip'
 import { useSession } from '@/features/auth/session'
-import { useStaffCount } from '@/features/staff/api'
+import { useStaffList } from '@/features/staff/api'
 
 /**
  * The owner's first screen. For now it is the short onboarding: add items,
- * create a staff account. Sales figures join it in Phase 4.
+ * create a staff account. Sales figures join it in step 1C.
  */
 export default function OwnerHomePage() {
   const { session } = useSession()
-  const staffCount = useStaffCount()
+  const staffList = useStaffList()
+  const staffCount = staffList.data?.length
   const user = session.status === 'signed_in' ? session.user : null
 
   return (
@@ -30,9 +31,9 @@ export default function OwnerHomePage() {
         <span id="setup-title" className="sr-only">
           Get set up
         </span>
-        {staffCount.isError ? (
+        {staffList.isError ? (
           <div className="rounded-card border border-line bg-surface-raised">
-            <ErrorState error={staffCount.error} onRetry={() => void staffCount.refetch()} />
+            <ErrorState error={staffList.error} onRetry={() => void staffList.refetch()} />
           </div>
         ) : (
           <ListGroup>
@@ -47,16 +48,16 @@ export default function OwnerHomePage() {
               leading={<UserPlus aria-hidden="true" className="size-5" />}
               title="Create a staff account"
               subtitle={
-                staffCount.isPending
+                staffList.isPending
                   ? 'Checking…'
-                  : staffCount.data === 0
+                  : staffCount === 0
                     ? 'So your staff can take orders'
-                    : `${staffCount.data} staff ${staffCount.data === 1 ? 'account' : 'accounts'} so far. Add another.`
+                    : `${staffCount} staff ${staffCount === 1 ? 'account' : 'accounts'} so far. Add another.`
               }
               trailing={
-                staffCount.isPending ? (
+                staffList.isPending ? (
                   <Skeleton className="h-6 w-14 rounded-full" />
-                ) : staffCount.data && staffCount.data > 0 ? (
+                ) : staffCount && staffCount > 0 ? (
                   <StatusChip status="completed" label="Done" />
                 ) : undefined
               }

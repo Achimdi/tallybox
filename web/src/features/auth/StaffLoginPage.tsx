@@ -6,6 +6,7 @@ import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { PasswordField } from '@/components/PasswordField'
 import { TextField } from '@/components/TextField'
+import { DemoAccounts } from '@/features/demo/DemoAccounts'
 import { toAppError, type AppError, type AppErrorCode } from '@/lib/errors'
 import { readStored, writeStored } from '@/lib/storage'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
@@ -34,9 +35,10 @@ const SPECIFIC: readonly AppErrorCode[] = [
   'captcha_failed',
   'server',
   'config_missing',
-  // These two are only ever reported after the password was correct.
+  // These are only ever reported after the password was correct.
   'account_disabled',
   'business_suspended',
+  'access_ended',
 ]
 
 /** Staff sign-in: business code, username and password. */
@@ -49,6 +51,7 @@ export default function StaffLoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -125,6 +128,15 @@ export default function StaffLoginPage() {
           Forgot your password? Ask the business owner to reset it.
         </p>
       </form>
+
+      <DemoAccounts
+        portal="staff"
+        onUse={(account) => {
+          setValue('businessCode', account.businessCode ?? '', { shouldValidate: true })
+          setValue('username', account.username ?? '', { shouldValidate: true })
+          setValue('password', account.password, { shouldValidate: true })
+        }}
+      />
     </AuthPage>
   )
 }

@@ -1,112 +1,100 @@
-import { LIMITS } from '@/domain/rules'
-import { Ban, KeyRound, Store, Users } from 'lucide-react'
-import { useState } from 'react'
-import { ErrorBanner } from '@/components/Banner'
-import { BottomSheet } from '@/components/BottomSheet'
+import { Ban, CalendarClock, CalendarX, KeyRound, Store, Users } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import type { AdminBusiness } from '@/api/types'
 import { Button } from '@/components/Button'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FilterChips, type FilterOption } from '@/components/FilterChips'
 import { ListGroup, ListItem } from '@/components/ListItem'
+import { SearchBar } from '@/components/SearchBar'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SkeletonList } from '@/components/Skeleton'
 import { StatCard } from '@/components/StatCard'
 import { EmptyState, ErrorState } from '@/components/states'
 import { StatusChip } from '@/components/StatusChip'
-import { TextField } from '@/components/TextField'
-import { useToast } from '@/components/toast-context'
-import { formatDate, formatDateTime } from '@/lib/dates'
-import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import {
-  useAdminBusinesses,
-  usePlatformCounts,
-  useSetBusinessStatus,
-  type AdminBusiness,
-} from './api'
+import { ResetDemoData } from '@/features/demo/ResetDemoData'
+import { accessChip, formatDay } from './access'
+import { useAdminBusinesses, usePlatformCounts } from './api'
 
-// The super-admin sees times in their own timezone.
-const MY_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
+type Filter = 'all' | 'active' | 'suspended' | 'ending_soon' | 'ended'
 
-function when(iso: string | null): string {
-  return iso ? formatDateTime(new Date(iso), MY_TIMEZONE) : 'Never'
+const FILTERS: Record<Filter, (business: AdminBusiness) => boolean> = {
+  all: () => true,
+  active: (business) => business.status === 'active' && business.accessFilter !== 'ended',
+  suspended: (business) => business.status === 'suspended',
+  ending_soon: (business) => business.accessFilter === 'ending_soon',
+  ended: (business) => business.accessFilter === 'ended',
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col">
-      <dt className="text-label font-normal text-ink-muted">{label}</dt>
-      <dd className="text-body break-words text-ink">{value}</dd>
-    </div>
-  )
+const FILTER_LABELS: Record<Filter, string> = {
+  all: 'All',
+  active: 'Active',
+  suspended: 'Suspended',
+  ending_soon: 'Ending soon',
+  ended: 'Access ended',
 }
 
-/** Super-admin: every business, with suspend and reactivate. */
+function matchesSearch(business: AdminBusiness, search: string): boolean {
+  const needle = search.trim().toLowerCase()
+  if (!needle) return true
+  return [
+    business.name,
+    business.businessCode,
+    business.ownerEmail ?? '',
+    business.ownerName ?? '',
+  ].some((value) => value.toLowerCase().includes(needle))
+}
+
+/** Developer portal: every business, with filters and platform counts. */
 export default function AdminBusinessesPage() {
-  const toast = useToast()
-  const online = useOnlineStatus()
   const businesses = useAdminBusinesses()
   const counts = usePlatformCounts()
-  const setStatus = useSetBusinessStatus()
+  const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [reason, setReason] = useState('')
-  const [reasonError, setReasonError] = useState<string | undefined>(undefined)
-  const [confirming, setConfirming] = useState<'suspend' | 'reactivate' | null>(null)
-
-  // Looked up from the fresh list each time, so the sheet shows the latest status.
-  const selected: AdminBusiness | undefined = businesses.data?.find(
-    (business) => business.id === selectedId,
+  const options = useMemo<FilterOption<Filter>[]>(
+    () =>
+      (Object.keys(FILTERS) as Filter[]).map((value) => ({
+        value,
+        label: FILTER_LABELS[value],
+        ...(businesses.data ? { count: businesses.data.filter(FILTERS[value]).length } : {}),
+      })),
+    [businesses.data],
   )
 
-  const open = (business: AdminBusiness) => {
-    setSelectedId(business.id)
-    setReason('')
-    setReasonError(undefined)
-    setStatus.reset()
-  }
-
-  const askToSuspend = () => {
-    if (reason.trim().length === 0) {
-      setReasonError('Say why, so there is a record.')
-      return
-    }
-    setReasonError(undefined)
-    setConfirming('suspend')
-  }
-
-  const applyStatus = () => {
-    if (!selected || !confirming) return
-    const suspending = confirming === 'suspend'
-    setStatus.mutate(
-      {
-        businessId: selected.id,
-        status: suspending ? 'suspended' : 'active',
-        ...(suspending ? { reason: reason.trim() } : {}),
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: suspending ? `${selected.name} suspended` : `${selected.name} reactivated`,
-            tone: 'success',
-          })
-          setReason('')
-        },
-        onSettled: () => setConfirming(null),
-      },
-    )
-  }
+  const shown = (businesses.data ?? []).filter(
+    (business) => FILTERS[filter](business) && matchesSearch(business, search),
+  )
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-title-lg text-ink">Businesses</h1>
 
-      <section aria-label="Platform counts" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section
+        aria-label="Platform counts"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"
+      >
         <StatCard label="Businesses" icon={Store} value={counts.data?.businesses ?? '–'} />
         <StatCard label="Suspended" icon={Ban} value={counts.data?.suspended ?? '–'} />
+        <StatCard label="Ending soon" icon={CalendarClock} value={counts.data?.endingSoon ?? '–'} />
+        <StatCard label="Access ended" icon={CalendarX} value={counts.data?.accessEnded ?? '–'} />
         <StatCard label="Staff accounts" icon={Users} value={counts.data?.staff ?? '–'} />
-        <StatCard label="Unused codes" icon={KeyRound} value={counts.data?.unused_codes ?? '–'} />
+        <StatCard label="Unused codes" icon={KeyRound} value={counts.data?.unusedCodes ?? '–'} />
       </section>
 
       <section className="flex flex-col gap-3">
         <SectionHeader title="All businesses" />
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          label="Search businesses"
+          placeholder="Search by name, code or owner"
+        />
+        <FilterChips
+          label="Filter businesses"
+          options={options}
+          value={filter}
+          onChange={setFilter}
+        />
+
         {businesses.isPending ? (
           <SkeletonList rows={4} label="Loading businesses" />
         ) : businesses.isError ? (
@@ -120,95 +108,50 @@ export default function AdminBusinessesPage() {
               description="Generate an activation code and send it to your first client."
             />
           </div>
+        ) : shown.length === 0 ? (
+          <div className="rounded-card border border-line bg-surface-raised">
+            <EmptyState
+              title="No businesses match"
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setFilter('all')
+                    setSearch('')
+                  }}
+                >
+                  Clear filters
+                </Button>
+              }
+            />
+          </div>
         ) : (
           <ListGroup>
-            {businesses.data.map((business) => (
-              <ListItem
-                key={business.id}
-                onClick={() => open(business)}
-                title={business.name}
-                subtitle={`${business.business_code} · ${business.owner_email ?? 'no owner'} · since ${formatDate(new Date(business.created_at), MY_TIMEZONE)}`}
-                trailing={<StatusChip status={business.status} />}
-              />
-            ))}
+            {shown.map((business) => {
+              const access = accessChip(business)
+              return (
+                <ListItem
+                  key={business.id}
+                  wrap
+                  to={`/admin/businesses/${business.id}`}
+                  title={business.name}
+                  subtitle={`${business.businessCode} · ${business.ownerEmail ?? 'no owner'} · since ${formatDay(business.createdAt)}`}
+                  trailing={
+                    <span className="flex flex-col items-end gap-1 sm:flex-row sm:items-center">
+                      {business.status === 'suspended' ? <StatusChip status="suspended" /> : null}
+                      <StatusChip status={access.status} label={access.label} />
+                    </span>
+                  }
+                />
+              )
+            })}
           </ListGroup>
         )}
       </section>
 
-      <BottomSheet
-        open={selected !== undefined}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setSelectedId(null)
-        }}
-        title={selected?.name ?? ''}
-        description={selected?.business_code ?? ''}
-      >
-        {selected ? (
-          <div className="flex flex-col gap-5">
-            <div>
-              <StatusChip status={selected.status} />
-            </div>
-            <dl className="grid grid-cols-2 gap-4">
-              <Detail label="Owner" value={selected.owner_email ?? 'No owner'} />
-              <Detail label="Staff accounts" value={String(selected.staff_count)} />
-              <Detail
-                label="Registered"
-                value={formatDate(new Date(selected.created_at), MY_TIMEZONE)}
-              />
-              <Detail label="Last sign-in" value={when(selected.last_activity_at)} />
-              {selected.status === 'suspended' ? (
-                <>
-                  <Detail label="Suspended" value={when(selected.suspended_at)} />
-                  <Detail label="Reason" value={selected.suspended_reason ?? ''} />
-                </>
-              ) : null}
-            </dl>
-
-            <ErrorBanner error={setStatus.error} />
-
-            {selected.status === 'active' ? (
-              <div className="flex flex-col gap-3">
-                <TextField
-                  label="Reason for suspending"
-                  value={reason}
-                  maxLength={LIMITS.reasonMax}
-                  onChange={(event) => setReason(event.target.value)}
-                  hint="Only you see this. Nobody in the business can use Tallybox while it is suspended."
-                  error={reasonError}
-                />
-                <Button variant="danger" onClick={askToSuspend} disabled={!online}>
-                  Suspend business
-                </Button>
-              </div>
-            ) : (
-              <Button onClick={() => setConfirming('reactivate')} disabled={!online}>
-                Reactivate business
-              </Button>
-            )}
-          </div>
-        ) : null}
-      </BottomSheet>
-
-      <ConfirmDialog
-        open={confirming !== null}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setConfirming(null)
-        }}
-        title={
-          confirming === 'suspend'
-            ? `Suspend ${selected?.name ?? 'this business'}?`
-            : `Reactivate ${selected?.name ?? 'this business'}?`
-        }
-        description={
-          confirming === 'suspend'
-            ? 'Everyone in the business is signed out and locked out straight away. Their records are kept, and you can reactivate at any time.'
-            : 'The owner and staff can sign in again straight away.'
-        }
-        confirmLabel={confirming === 'suspend' ? 'Suspend' : 'Reactivate'}
-        tone={confirming === 'suspend' ? 'danger' : 'default'}
-        loading={setStatus.isPending}
-        onConfirm={applyStatus}
-      />
+      <div className="flex justify-center pt-2">
+        <ResetDemoData />
+      </div>
     </div>
   )
 }

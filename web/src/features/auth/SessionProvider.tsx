@@ -1,94 +1,58 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { isSupabaseConfigured } from '@/lib/env'
-import { AppError, toAppError } from '@/lib/errors'
+import { useApi } from '@/api/context'
+import type { BlockedNotice, SessionResult } from '@/api/types'
+import { AppError, toAppError, type AppErrorCode } from '@/lib/errors'
 import { logger } from '@/lib/logger'
-import { readStored, removeStored, writeStored } from '@/lib/storage'
-import { getSupabase } from '@/lib/supabase'
-import {
-  fetchSessionState,
-  hasStoredSession,
-  signInThroughPortal,
-  signOutHere,
-} from './authService'
 import {
   SessionContext,
-  type BlockedNotice,
-  type Role,
   type SessionContextValue,
   type SessionState,
-  type SessionUser,
   type SignInInput,
 } from './session'
-import type { InterpretedSession } from './sessionState'
 
 /**
  * Holds who is signed in, and keeps that honest.
  *
- * Supabase keeps the session in the browser and refreshes it by itself. On top
- * of that, this provider asks the DATABASE who the person is: on start, after
- * sign-in, whenever the tab regains focus and when the network comes back. If
- * the business was suspended or the account turned off in the meantime, the
- * person is signed out and sent to the suspended screen.
+ * The data layer is asked who the person is on start, after sign-in, whenever
+ * the tab regains focus and when the network comes back. If the business was
+ * suspended, its access ended, or the account was turned off in the meantime,
+ * the person is signed out and sent to the right screen.
  *
- * This decides which SCREENS show. It is not security: Row Level Security in
- * the database refuses the data regardless of what the browser thinks.
+ * This decides which SCREENS show. It is not security: in Phase 2 the
+ * database refuses the data regardless of what the browser thinks.
  */
 
-/** Do not re-ask the database more often than this on focus changes. */
+/** Do not re-ask more often than this on focus changes. */
 const RECHECK_MIN_GAP_MS = 5000
 
-// --- Development-only layout preview (when Supabase is not configured) -------
-
-const DEV_ROLE_KEY = 'tb.dev.role'
-const ROLES: readonly Role[] = ['super_admin', 'owner', 'staff']
-
-function devUser(role: Role): SessionUser {
-  const inBusiness = role !== 'super_admin'
-  return {
-    id: `dev-${role}`,
-    role,
-    displayName:
-      role === 'super_admin' ? 'Developer' : role === 'owner' ? 'Demo Owner' : 'Demo Staff',
-    username: role === 'staff' ? 'demo' : null,
-    businessId: inBusiness ? 'dev-business' : null,
-    businessName: inBusiness ? 'Demo Shop' : null,
-    businessCode: inBusiness ? 'demo-shop' : null,
-    currencyCode: inBusiness ? 'NGN' : null,
-    timezone: inBusiness ? 'Africa/Lagos' : null,
-  }
+const BLOCKED_ERROR: Record<BlockedNotice['reason'], AppErrorCode> = {
+  suspended: 'business_suspended',
+  access_ended: 'access_ended',
+  disabled: 'account_disabled',
+  no_profile: 'permission_denied',
 }
-
-const devPreviewAvailable = import.meta.env.DEV && !isSupabaseConfigured
-
-function initialSession(live: boolean): SessionState {
-  if (live) return { status: 'loading' }
-  if (devPreviewAvailable) {
-    const stored = readStored('session', DEV_ROLE_KEY)
-    const role = ROLES.find((candidate) => candidate === stored)
-    if (role) return { status: 'signed_in', user: devUser(role) }
-  }
-  return { status: 'signed_out' }
-}
-
-// -----------------------------------------------------------------------------
 
 interface SessionProviderProps {
   children: ReactNode
-  /** For tests: start in a given state and never contact Supabase. */
+  /** For tests: start in a given state and skip the first check. */
   initial?: SessionState
   /** For tests: start with a blocked notice. */
   initialBlocked?: BlockedNotice
 }
 
 export function SessionProvider({ children, initial, initialBlocked }: SessionProviderProps) {
-  const live = initial === undefined && isSupabaseConfigured
-  const [session, setSession] = useState<SessionState>(() => initial ?? initialSession(live))
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const [session, setSession] = useState<SessionState>(() => initial ?? { status: 'loading' })
   const [blocked, setBlocked] = useState<BlockedNotice | null>(initialBlocked ?? null)
-  const signingIn = useRef(false)
+  const busy = useRef(false)
   const lastCheck = useRef(0)
 
-  const apply = useCallback((result: InterpretedSession) => {
-    if (result.kind === 'blocked') {
+  const apply = useCallback((result: SessionResult | null) => {
+    if (result === null) {
+      setSession({ status: 'signed_out' })
+    } else if (result.kind === 'blocked') {
       setBlocked(result.notice)
       setSession({ status: 'signed_out' })
     } else {
@@ -96,56 +60,31 @@ export function SessionProvider({ children, initial, initialBlocked }: SessionPr
     }
   }, [])
 
-  /** Asks the database again who this is. Safe to call often. */
+  /** Asks again who this is. Safe to call often. */
   const recheck = useCallback(
     async (force: boolean) => {
-      if (!live || signingIn.current) return
+      if (busy.current) return
       const now = Date.now()
       if (!force && now - lastCheck.current < RECHECK_MIN_GAP_MS) return
       lastCheck.current = now
-
       try {
-        if (!(await hasStoredSession())) {
-          setSession({ status: 'signed_out' })
-          return
-        }
-        const result = await fetchSessionState(false)
-        if (result.kind === 'blocked') await signOutHere()
-        apply(result)
+        apply(await api.auth.getSession())
       } catch (error) {
         const appError = toAppError(error)
-        if (appError.code === 'unauthenticated') {
-          await signOutHere()
-          setSession({ status: 'signed_out' })
-          return
-        }
         logger.warn('session_check_failed', { code: appError.code })
-        // Offline or a server hiccup: keep whoever was signed in as they were.
-        // On a cold start there is nobody yet, so show the welcome screen. The
-        // stored session is kept and is picked up again when the network returns.
+        // Offline or a hiccup: keep whoever was signed in as they were. On a
+        // cold start there is nobody yet, so show the welcome screen.
         setSession((current) => (current.status === 'loading' ? { status: 'signed_out' } : current))
       }
     },
-    [live, apply],
+    [api, apply],
   )
 
   useEffect(() => {
-    if (!live) return
-
-    // Supabase reports INITIAL_SESSION as soon as it has read the stored
-    // session, which is the moment to ask the database who this is.
-    const { data } = getSupabase().auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        setSession({ status: 'signed_out' })
-      } else if (
-        event === 'INITIAL_SESSION' ||
-        event === 'TOKEN_REFRESHED' ||
-        event === 'USER_UPDATED'
-      ) {
-        // Supabase asks that nothing else is awaited inside this callback.
-        window.setTimeout(() => void recheck(true), 0)
-      }
-    })
+    // The first check, deferred a tick so it never updates state during render
+    // (and runs once, even when React mounts effects twice in development).
+    const firstCheck =
+      initial === undefined ? window.setTimeout(() => void recheck(true), 0) : undefined
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') void recheck(false)
@@ -154,60 +93,43 @@ export function SessionProvider({ children, initial, initialBlocked }: SessionPr
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
     window.addEventListener('online', onOnline)
-
     return () => {
-      data.subscription.unsubscribe()
+      window.clearTimeout(firstCheck)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
       window.removeEventListener('online', onOnline)
     }
-  }, [live, recheck])
+  }, [initial, recheck])
 
   const signIn = useCallback(
     async (input: SignInInput) => {
-      if (!live) throw new AppError('config_missing')
-      signingIn.current = true
+      busy.current = true
       try {
-        const result = await signInThroughPortal(input)
+        const result = await api.auth.signIn(input)
         lastCheck.current = Date.now()
-        if (result.kind === 'blocked') {
-          apply(result)
-          throw new AppError(
-            result.notice.reason === 'disabled' ? 'account_disabled' : 'business_suspended',
-          )
-        }
-        setBlocked(null)
+        // Nothing read for the previous person may show for the next one.
+        queryClient.clear()
         apply(result)
+        if (result.kind === 'blocked') throw new AppError(BLOCKED_ERROR[result.notice.reason])
+        setBlocked(null)
       } finally {
-        signingIn.current = false
+        busy.current = false
       }
     },
-    [live, apply],
+    [api, apply, queryClient],
   )
 
   const signOut = useCallback(() => {
-    removeStored('session', DEV_ROLE_KEY)
     setSession({ status: 'signed_out' })
-    if (live) void signOutHere()
-  }, [live])
+    queryClient.clear()
+    void api.auth.signOut().catch(() => undefined)
+  }, [api, queryClient])
 
   const clearBlocked = useCallback(() => setBlocked(null), [])
 
-  const devSignIn = useCallback((role: Role) => {
-    writeStored('session', DEV_ROLE_KEY, role)
-    setSession({ status: 'signed_in', user: devUser(role) })
-  }, [])
-
   const value = useMemo<SessionContextValue>(
-    () => ({
-      session,
-      blocked,
-      clearBlocked,
-      signIn,
-      signOut,
-      ...(devPreviewAvailable && initial === undefined ? { devSignIn } : {}),
-    }),
-    [session, blocked, clearBlocked, signIn, signOut, devSignIn, initial],
+    () => ({ session, blocked, clearBlocked, signIn, signOut }),
+    [session, blocked, clearBlocked, signIn, signOut],
   )
 
   return <SessionContext value={value}>{children}</SessionContext>

@@ -15,6 +15,7 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
+import { useApi } from '@/api/context'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { PasswordField } from '@/components/PasswordField'
@@ -23,7 +24,6 @@ import { SUPPORT_EMAIL } from '@/lib/config'
 import { toAppError, userMessage, type AppError, type AppErrorCode } from '@/lib/errors'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import { isBusinessCodeAvailable, registerBusiness } from './api'
 import { AuthPage } from './AuthPage'
 import { useTurnstile } from './useTurnstile'
 
@@ -88,6 +88,7 @@ const FIELD_FOR_CODE: Partial<Record<AppErrorCode, keyof FormInput>> = {
 
 /** Register a business with a single-use activation code. Approval is automatic. */
 export default function RegisterPage() {
+  const api = useApi()
   const navigate = useNavigate()
   const online = useOnlineStatus()
   const turnstile = useTurnstile()
@@ -118,7 +119,7 @@ export default function RegisterPage() {
   const codeToCheck = useDebouncedValue(typedCode, 400)
   const availability = useQuery({
     queryKey: ['business-code-available', codeToCheck],
-    queryFn: () => isBusinessCodeAvailable(codeToCheck),
+    queryFn: () => api.registration.isBusinessCodeAvailable(codeToCheck),
     enabled: online && isValidBusinessCode(codeToCheck),
     staleTime: 30_000,
     retry: false,
@@ -127,11 +128,20 @@ export default function RegisterPage() {
   const codeIsFree = settled && availability.data === true
   const codeIsTaken = settled && availability.data === false
 
+  // The real backend checks for bots with Turnstile. The demo has nothing to check.
+  const needsCheck = api.requiresCaptcha
+  const checkMissing = needsCheck && !turnstile.enabled
+
   const onSubmit = handleSubmit(async (values) => {
     setError(null)
-    if (!turnstile.token) return
+    if (needsCheck && !turnstile.token) return
     try {
-      await registerBusiness({ ...values, turnstileToken: turnstile.token })
+      await api.registration.registerBusiness({
+        ...values,
+        // A sensible first setting. The owner can change it in settings later.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        captchaToken: turnstile.token ?? undefined,
+      })
       await navigate('/login/owner', { replace: true, state: { registeredEmail: values.email } })
     } catch (thrown) {
       const appError = toAppError(thrown)
@@ -239,15 +249,14 @@ export default function RegisterPage() {
           {...register('activationCode')}
         />
 
-        {turnstile.enabled ? (
-          turnstile.element
-        ) : (
+        {turnstile.element}
+        {checkMissing ? (
           <Banner
             tone="info"
             title="Registration isn't switched on yet"
             description={`The security check hasn't been set up. Contact ${SUPPORT_EMAIL}.`}
           />
-        )}
+        ) : null}
 
         <Button
           type="submit"
@@ -255,7 +264,7 @@ export default function RegisterPage() {
           fullWidth
           loading={isSubmitting}
           loadingLabel="Registering…"
-          disabled={!online || !turnstile.token || codeIsTaken}
+          disabled={!online || checkMissing || (needsCheck && !turnstile.token) || codeIsTaken}
         >
           Register business
         </Button>

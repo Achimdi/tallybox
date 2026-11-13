@@ -1,103 +1,67 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { LIMITS } from '@/domain/rules'
-import { Copy, MessageCircle } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { ErrorBanner } from '@/components/Banner'
-import { Button } from '@/components/Button'
-import { buttonClasses } from '@/components/button-styles'
+import type { AdminActivationCode } from '@/api/types'
+import { Button, ButtonLink } from '@/components/Button'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FilterChips } from '@/components/FilterChips'
 import { ListGroup, ListItem } from '@/components/ListItem'
-import { SectionHeader } from '@/components/SectionHeader'
 import { SkeletonList } from '@/components/Skeleton'
 import { EmptyState, ErrorState } from '@/components/states'
 import { StatusChip } from '@/components/StatusChip'
-import { TextField } from '@/components/TextField'
 import { useToast } from '@/components/toast-context'
-import { cn } from '@/lib/cn'
-import { formatDate } from '@/lib/dates'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import {
-  useAdminActivationCodes,
-  useGenerateActivationCode,
-  useRevokeActivationCode,
-  type AdminActivationCode,
-  type GeneratedCode,
-} from './api'
-import { activationMessage, whatsAppShareUrl } from './whatsapp'
+import { accessLengthLabel, formatDay } from './access'
+import { useAdminActivationCodes, useRevokeActivationCode } from './api'
 
-const MY_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
+type Filter = 'all' | AdminActivationCode['status']
 
-const schema = z.object({
-  ownerEmail: z
-    .string()
-    .trim()
-    .min(1, "Enter the owner's email.")
-    .pipe(z.email('Enter a valid email address.')),
-  note: z.string().trim().max(LIMITS.noteMax, 'Use at most 200 characters.'),
-  expiresInDays: z
-    .number({ error: 'Enter a number of days.' })
-    .int('Use a whole number of days.')
-    .min(LIMITS.activationCodeDaysMin, 'Use at least 1 day.')
-    .max(LIMITS.activationCodeDaysMax, 'Use at most 90 days.'),
-})
-
-type FormValues = z.infer<typeof schema>
+const FILTERS: readonly { value: Filter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unused', label: 'Unused' },
+  { value: 'used', label: 'Used' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'revoked', label: 'Revoked' },
+]
 
 function codeSubtitle(code: AdminActivationCode): string {
-  const parts = [code.note ?? null]
+  const parts: string[] = []
+  if (code.note) parts.push(code.note)
   if (code.status === 'used') {
-    parts.push(code.used_by_business_name ? `Used by ${code.used_by_business_name}` : 'Used')
-  } else {
-    const verb = code.status === 'expired' ? 'Expired' : 'Expires'
-    parts.push(`${verb} ${formatDate(new Date(code.expires_at), MY_TIMEZONE)}`)
+    parts.push(
+      code.usedByBusinessName
+        ? `Used by ${code.usedByBusinessName}${code.usedAt ? ` on ${formatDay(code.usedAt)}` : ''}`
+        : 'Used',
+    )
+  } else if (code.status === 'expired') {
+    parts.push(`Expired ${formatDay(code.redeemBy)}`)
+  } else if (code.status === 'unused') {
+    parts.push(`Redeem by ${formatDay(code.redeemBy)}`)
   }
-  return parts.filter(Boolean).join(' · ')
+  parts.push(`Access: ${accessLengthLabel(code.accessDays)}`)
+  return parts.join(' · ')
 }
 
-/** Super-admin: generate, list and revoke activation codes. */
+/** Developer portal: every activation code and its status. */
 export default function AdminCodesPage() {
   const toast = useToast()
   const online = useOnlineStatus()
   const codes = useAdminActivationCodes()
-  const generate = useGenerateActivationCode()
   const revoke = useRevokeActivationCode()
-
-  const [fresh, setFresh] = useState<GeneratedCode | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
   const [toRevoke, setToRevoke] = useState<AdminActivationCode | null>(null)
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { ownerEmail: '', note: '', expiresInDays: 7 },
-  })
-
-  const onSubmit = handleSubmit((values) => {
-    generate.mutate(values, {
-      onSuccess: (code) => {
-        setFresh(code)
-        reset()
-      },
-    })
-  })
-
-  const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast({ title: 'Copied', tone: 'success' })
-    } catch {
-      toast({
-        title: "Couldn't copy",
-        description: 'Select the code and copy it by hand.',
-        tone: 'error',
-      })
-    }
-  }
+  const options = FILTERS.map((option) => ({
+    ...option,
+    ...(codes.data
+      ? {
+          count:
+            option.value === 'all'
+              ? codes.data.length
+              : codes.data.filter((code) => code.status === option.value).length,
+        }
+      : {}),
+  }))
+  const shown = (codes.data ?? []).filter((code) => filter === 'all' || code.status === filter)
 
   const confirmRevoke = () => {
     if (!toRevoke) return
@@ -113,139 +77,67 @@ export default function AdminCodesPage() {
     })
   }
 
-  const registerUrl = `${window.location.origin}/register`
-
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-title-lg text-ink">Activation codes</h1>
-
-      {fresh ? (
-        <section
-          aria-labelledby="fresh-title"
-          className="flex flex-col gap-4 rounded-card border-2 border-primary bg-surface-raised p-5 shadow-soft"
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-title-lg text-ink">Activation codes</h1>
+        <ButtonLink
+          to="/admin/codes/new"
+          leadingIcon={<Plus aria-hidden="true" className="size-5" />}
         >
-          <div className="flex flex-col gap-1">
-            <h2 id="fresh-title" className="text-label text-ink-muted">
-              New code for {fresh.ownerEmail}
-            </h2>
-            <p className="text-display tracking-wider text-ink tabular-nums select-all">
-              {fresh.code}
-            </p>
-            <p className="text-label font-normal text-ink-muted">
-              Shown only this once. Copy or share it now. Expires{' '}
-              {formatDate(new Date(fresh.expiresAt), MY_TIMEZONE)}.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button
-              onClick={() => void copy(fresh.code)}
-              leadingIcon={<Copy aria-hidden="true" className="size-5" />}
-            >
-              Copy
-            </Button>
-            <a
-              href={whatsAppShareUrl(activationMessage(fresh, registerUrl, MY_TIMEZONE))}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonClasses({ variant: 'secondary' }), 'hover:bg-surface-sunken')}
-            >
-              <MessageCircle aria-hidden="true" className="size-5" />
-              <span>Share on WhatsApp</span>
-            </a>
-            <Button variant="ghost" onClick={() => setFresh(null)}>
-              Done
-            </Button>
-          </div>
-        </section>
-      ) : null}
+          Generate code
+        </ButtonLink>
+      </header>
 
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Generate a code" />
-        <form
-          noValidate
-          onSubmit={(event) => void onSubmit(event)}
-          className="flex max-w-md flex-col gap-4"
-        >
-          <ErrorBanner error={generate.error} />
-          <TextField
-            label="Owner's email"
-            required
-            type="email"
-            inputMode="email"
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            hint="Only this email can use the code."
-            error={errors.ownerEmail?.message}
-            {...register('ownerEmail')}
-          />
-          <TextField
-            label="Note"
-            autoComplete="off"
-            hint="Optional. For example the client's name."
-            error={errors.note?.message}
-            {...register('note')}
-          />
-          <TextField
-            label="Valid for (days)"
-            required
-            type="number"
-            inputMode="numeric"
-            min={LIMITS.activationCodeDaysMin}
-            max={LIMITS.activationCodeDaysMax}
-            error={errors.expiresInDays?.message}
-            {...register('expiresInDays', { valueAsNumber: true })}
-          />
-          <div>
-            <Button
-              type="submit"
-              loading={generate.isPending}
-              loadingLabel="Generating…"
-              disabled={!online}
-            >
-              Generate code
-            </Button>
-          </div>
-        </form>
-      </section>
+      <FilterChips label="Filter codes" options={options} value={filter} onChange={setFilter} />
 
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Codes" />
-        {codes.isPending ? (
-          <SkeletonList rows={3} label="Loading codes" />
-        ) : codes.isError ? (
-          <div className="rounded-card border border-line bg-surface-raised">
-            <ErrorState error={codes.error} onRetry={() => void codes.refetch()} />
-          </div>
-        ) : codes.data.length === 0 ? (
-          <div className="rounded-card border border-line bg-surface-raised">
-            <EmptyState
-              title="No codes yet"
-              description="Generate one above for each new business."
+      {codes.isPending ? (
+        <SkeletonList rows={4} label="Loading codes" />
+      ) : codes.isError ? (
+        <div className="rounded-card border border-line bg-surface-raised">
+          <ErrorState error={codes.error} onRetry={() => void codes.refetch()} />
+        </div>
+      ) : codes.data.length === 0 ? (
+        <div className="rounded-card border border-line bg-surface-raised">
+          <EmptyState
+            title="No codes yet"
+            description="Generate one for each new business."
+            action={<ButtonLink to="/admin/codes/new">Generate code</ButtonLink>}
+          />
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="rounded-card border border-line bg-surface-raised">
+          <EmptyState
+            title="No codes match"
+            action={
+              <Button variant="secondary" onClick={() => setFilter('all')}>
+                Show all codes
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <ListGroup>
+          {shown.map((code) => (
+            <ListItem
+              key={code.id}
+              wrap
+              title={code.ownerEmail}
+              subtitle={codeSubtitle(code)}
+              trailing={
+                <>
+                  <StatusChip status={code.status} />
+                  {code.status === 'unused' ? (
+                    <Button variant="ghost" onClick={() => setToRevoke(code)} disabled={!online}>
+                      Revoke
+                    </Button>
+                  ) : null}
+                </>
+              }
             />
-          </div>
-        ) : (
-          <ListGroup>
-            {codes.data.map((code) => (
-              <ListItem
-                key={code.id}
-                title={code.owner_email}
-                subtitle={codeSubtitle(code)}
-                trailing={
-                  <>
-                    <StatusChip status={code.status} />
-                    {code.status === 'unused' ? (
-                      <Button variant="ghost" onClick={() => setToRevoke(code)} disabled={!online}>
-                        Revoke
-                      </Button>
-                    ) : null}
-                  </>
-                }
-              />
-            ))}
-          </ListGroup>
-        )}
-      </section>
+          ))}
+        </ListGroup>
+      )}
 
       <ConfirmDialog
         open={toRevoke !== null}
@@ -253,7 +145,7 @@ export default function AdminCodesPage() {
           if (!isOpen) setToRevoke(null)
         }}
         title="Revoke this code?"
-        description={`The code for ${toRevoke?.owner_email ?? 'this owner'} will stop working. You can generate a new one at any time.`}
+        description={`The code for ${toRevoke?.ownerEmail ?? 'this owner'} will stop working. You can generate a new one at any time.`}
         confirmLabel="Revoke code"
         tone="danger"
         loading={revoke.isPending}

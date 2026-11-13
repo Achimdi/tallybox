@@ -37,6 +37,10 @@ const USER_MESSAGES = {
     title: 'This business is suspended',
     description: 'Contact Tallybox support to get it reactivated.',
   },
+  access_ended: {
+    title: "This business's access has ended",
+    description: 'Contact Tallybox support to extend it. Your records are safe.',
+  },
   not_found: {
     title: "We couldn't find that",
     description: 'It may have been removed. Go back and try again.',

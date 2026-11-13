@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { looksLikeSecretKey, parseEnv } from './env'
+import { looksLikeSecretKey, parseEnv, releaseProblem } from './env'
 
 function fakeJwt(payload: object): string {
   const encode = (value: object) =>
@@ -11,11 +11,15 @@ describe('parseEnv', () => {
   it('reads the public settings', () => {
     expect(
       parseEnv({
+        VITE_DATA_SOURCE: 'supabase',
+        VITE_RELEASE: 'client',
         VITE_SUPABASE_URL: 'https://abc.supabase.co',
         VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_123',
         VITE_TURNSTILE_SITE_KEY: '0x4AAA',
       }),
     ).toEqual({
+      dataSource: 'supabase',
+      release: 'client',
       supabaseUrl: 'https://abc.supabase.co',
       supabasePublishableKey: 'sb_publishable_123',
       turnstileSiteKey: '0x4AAA',
@@ -23,8 +27,10 @@ describe('parseEnv', () => {
     })
   })
 
-  it('treats blank values as not set', () => {
+  it('defaults to demo data and a demo release', () => {
     expect(parseEnv({ VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '  ' })).toEqual({
+      dataSource: 'mock',
+      release: 'demo',
       supabaseUrl: undefined,
       supabasePublishableKey: undefined,
       turnstileSiteKey: undefined,
@@ -32,8 +38,27 @@ describe('parseEnv', () => {
     })
   })
 
+  it('treats unknown values as the safe default', () => {
+    const appEnv = parseEnv({ VITE_DATA_SOURCE: 'firebase', VITE_RELEASE: 'prod' })
+    expect(appEnv.dataSource).toBe('mock')
+    expect(appEnv.release).toBe('demo')
+  })
+
   it('rejects a URL that is not a web address', () => {
     expect(parseEnv({ VITE_SUPABASE_URL: 'not a url' }).supabaseUrl).toBeUndefined()
+  })
+})
+
+describe('releaseProblem', () => {
+  it('refuses a client release on demo data', () => {
+    expect(releaseProblem({ release: 'client', dataSource: 'mock' })).toMatch(
+      /cannot use demo data/,
+    )
+  })
+
+  it('allows the demo build and a client build on the real backend', () => {
+    expect(releaseProblem({ release: 'demo', dataSource: 'mock' })).toBeNull()
+    expect(releaseProblem({ release: 'client', dataSource: 'supabase' })).toBeNull()
   })
 })
 

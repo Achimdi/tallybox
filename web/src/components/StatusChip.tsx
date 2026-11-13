@@ -1,5 +1,8 @@
 import {
   Ban,
+  CalendarClock,
+  CalendarX,
+  Infinity as InfinityIcon,
   Check,
   CircleCheck,
   Clock,
@@ -21,6 +24,10 @@ export type ChipStatus =
   // Businesses and accounts
   | 'active'
   | 'suspended'
+  // Access periods
+  | 'ending_soon'
+  | 'access_ended'
+  | 'open_ended'
   // Activation codes
   | 'unused'
   | 'used'
@@ -48,6 +55,9 @@ const STYLES: Record<ChipStatus, ChipStyle> = {
   out_of_stock: { label: 'Out of stock', icon: PackageX, className: BAD },
   active: { label: 'Active', icon: Check, className: GOOD },
   suspended: { label: 'Suspended', icon: Ban, className: BAD },
+  ending_soon: { label: 'Ending soon', icon: CalendarClock, className: CAUTION },
+  access_ended: { label: 'Access ended', icon: CalendarX, className: BAD },
+  open_ended: { label: 'Open-ended', icon: InfinityIcon, className: GOOD },
   unused: { label: 'Unused', icon: Clock, className: WAITING },
   used: { label: 'Used', icon: CircleCheck, className: GOOD },
   revoked: { label: 'Revoked', icon: Ban, className: BAD },

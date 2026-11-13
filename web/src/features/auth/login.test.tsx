@@ -191,7 +191,7 @@ describe('suspended and turned-off accounts', () => {
   it('shows the suspended screen instead of the welcome page', async () => {
     const { router } = renderApp({
       path: '/',
-      blocked: { reason: 'suspended', businessName: 'Test Shop' },
+      blocked: { reason: 'suspended', businessName: 'Test Shop', accessEndedAt: null },
     })
     expect(
       await screen.findByRole('heading', { name: 'Test Shop is suspended' }),
@@ -203,7 +203,7 @@ describe('suspended and turned-off accounts', () => {
   it('sends a guarded address to the suspended screen too', async () => {
     const { router } = renderApp({
       path: '/owner/dashboard',
-      blocked: { reason: 'suspended', businessName: 'Test Shop' },
+      blocked: { reason: 'suspended', businessName: 'Test Shop', accessEndedAt: null },
     })
     expect(
       await screen.findByRole('heading', { name: 'Test Shop is suspended' }),
@@ -212,7 +212,10 @@ describe('suspended and turned-off accounts', () => {
   })
 
   it('words a turned-off account differently from a suspended business', async () => {
-    renderApp({ path: '/', blocked: { reason: 'disabled', businessName: 'Test Shop' } })
+    renderApp({
+      path: '/',
+      blocked: { reason: 'disabled', businessName: 'Test Shop', accessEndedAt: null },
+    })
     expect(
       await screen.findByRole('heading', { name: 'This account is turned off' }),
     ).toBeInTheDocument()
@@ -222,7 +225,7 @@ describe('suspended and turned-off accounts', () => {
   it('lets the person go back to the start', async () => {
     const { router } = renderApp({
       path: '/',
-      blocked: { reason: 'suspended', businessName: 'Test Shop' },
+      blocked: { reason: 'suspended', businessName: 'Test Shop', accessEndedAt: null },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Back to start' }))
     expect(await screen.findByRole('link', { name: 'Owner login' })).toBeInTheDocument()
@@ -238,5 +241,49 @@ describe('forgot password', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('tallybox3@gmail.com')).toBeInTheDocument()
     expect(screen.getByText(/Ask the business owner/)).toBeInTheDocument()
+  })
+})
+
+describe('signing in on the demo data layer', () => {
+  it('fills the form from a demo account and lands the owner on the dashboard', async () => {
+    const { router } = renderApp({ path: '/login/owner' })
+    await userEvent.click(await screen.findByRole('button', { name: /Owner, Sunrise Pharmacy/ }))
+    expect(screen.getByLabelText('Email')).toHaveValue('owner@demo.tallybox.test')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/owner/dashboard')
+  })
+
+  it('signs staff in with business code, username and password', async () => {
+    const { router } = renderApp({ path: '/login/staff' })
+    await userEvent.click(await screen.findByRole('button', { name: /sunrise-demo \/ ada/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'New order' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/staff/new-order')
+  })
+
+  it('sends the owner of a business whose access ended to the access-ended screen', async () => {
+    const { router } = renderApp({ path: '/login/owner' })
+    await userEvent.click(await screen.findByRole('button', { name: /Daily Needs Supermarket/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(
+      await screen.findByRole('heading', { name: "Daily Needs Supermarket's access has ended" }),
+    ).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/access-ended')
+    expect(screen.getByText(/Access ended on/)).toBeInTheDocument()
+  })
+
+  it('sends a turned-off staff member to the turned-off screen', async () => {
+    renderApp({ path: '/login/staff' })
+    await userEvent.click(await screen.findByRole('button', { name: /sunrise-demo \/ chidi/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(
+      await screen.findByRole('heading', { name: 'This account is turned off' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the demo banner on every screen', async () => {
+    renderApp({ path: '/' })
+    expect(await screen.findByText('Demo mode: data stays in this browser')).toBeInTheDocument()
   })
 })

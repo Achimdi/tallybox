@@ -3,6 +3,8 @@ import { render, type RenderResult } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
+import { ApiContext } from '@/api/context'
+import type { TallyboxApi } from '@/api/types'
 import { Providers } from '@/app/Providers'
 import { createQueryClient } from '@/app/queryClient'
 import { routes } from '@/app/routes'
@@ -14,6 +16,7 @@ import {
   type SessionContextValue,
   type SessionState,
 } from '@/features/auth/session'
+import { createTestApi } from './mockApi'
 
 type Router = ReturnType<typeof createMemoryRouter>
 
@@ -23,6 +26,7 @@ const TEST_USER_NAME: Record<Role, string> = {
   super_admin: 'Test Admin',
 }
 
+/** A session to start from, without asking the data layer (for layout and guard tests). */
 export function signedInAs(role: Role): SessionState {
   const inBusiness = role !== 'super_admin'
   return {
@@ -31,28 +35,34 @@ export function signedInAs(role: Role): SessionState {
       id: `test-${role}`,
       role,
       displayName: TEST_USER_NAME[role],
+      email: role === 'staff' ? null : `${role}@test.test`,
       username: role === 'staff' ? 'teststaff' : null,
       businessId: inBusiness ? 'test-business' : null,
       businessName: inBusiness ? 'Test Shop' : null,
       businessCode: inBusiness ? 'test-shop' : null,
       currencyCode: inBusiness ? 'NGN' : null,
       timezone: inBusiness ? 'Africa/Lagos' : null,
+      accessEndsAt: null,
     },
   }
 }
 
 interface RenderAppOptions {
   path?: string
+  /** The data layer. Default: a fresh in-memory demo, signed out. */
+  api?: TallyboxApi
+  /** Start from this session without asking the data layer. */
   session?: SessionState
   blocked?: BlockedNotice
   /** React Router location state, as set by `navigate(path, { state })`. */
   state?: unknown
 }
 
-/** Renders the real app (real routes, real guards) at a URL, as a given session. */
+/** Renders the real app (real routes, guards and providers) at a URL. */
 export function renderApp({
   path = '/',
-  session = { status: 'signed_out' },
+  api = createTestApi().api,
+  session,
   blocked,
   state,
 }: RenderAppOptions = {}): RenderResult & { router: Router } {
@@ -60,7 +70,11 @@ export function renderApp({
     initialEntries: [state === undefined ? path : { pathname: path, state }],
   })
   const result = render(
-    <Providers initialSession={session} {...(blocked ? { initialBlocked: blocked } : {})}>
+    <Providers
+      api={api}
+      {...(session ? { initialSession: session } : {})}
+      {...(blocked ? { initialBlocked: blocked } : {})}
+    >
       <RouterProvider router={router} />
     </Providers>,
   )
@@ -70,6 +84,7 @@ export function renderApp({
 interface RenderPageOptions {
   /** Replace parts of the session, for example a `signIn` that fails. */
   session?: Partial<SessionContextValue>
+  api?: TallyboxApi
   state?: unknown
 }
 
@@ -79,7 +94,7 @@ interface RenderPageOptions {
  */
 export function renderPage(
   page: ReactElement,
-  { session, state }: RenderPageOptions = {},
+  { session, api = createTestApi().api, state }: RenderPageOptions = {},
 ): RenderResult & { router: Router } {
   const value: SessionContextValue = {
     session: { status: 'signed_out' },
@@ -93,13 +108,15 @@ export function renderPage(
     initialEntries: [state === undefined ? '/' : { pathname: '/', state }],
   })
   const result = render(
-    <QueryClientProvider client={createQueryClient()}>
-      <SessionContext value={value}>
-        <ToastProvider>
-          <RouterProvider router={router} />
-        </ToastProvider>
-      </SessionContext>
-    </QueryClientProvider>,
+    <ApiContext value={api}>
+      <QueryClientProvider client={createQueryClient()}>
+        <SessionContext value={value}>
+          <ToastProvider>
+            <RouterProvider router={router} />
+          </ToastProvider>
+        </SessionContext>
+      </QueryClientProvider>
+    </ApiContext>,
   )
   return { ...result, router }
 }

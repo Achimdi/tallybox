@@ -1,17 +1,17 @@
+import type { GeneratedCode } from '@/api/types'
 import { formatDate } from '@/lib/dates'
+import { accessLengthLabel } from './access'
 
-interface ShareableCode {
-  code: string
-  ownerEmail: string
-  expiresAt: string
-}
-
-/** The message that goes to a new client: the app link, their email and the code. */
+/** The message that goes to a new client: the app link, their email, the code and its window. */
 export function activationMessage(
-  code: ShareableCode,
+  code: Pick<GeneratedCode, 'code' | 'ownerEmail' | 'redeemBy' | 'accessDays'>,
   registerUrl: string,
   timeZone: string,
 ): string {
+  const access =
+    code.accessDays === null
+      ? 'Your access has no end date.'
+      : `Your access lasts ${accessLengthLabel(code.accessDays)} from the day you register.`
   return [
     'Welcome to Tallybox!',
     '',
@@ -19,7 +19,7 @@ export function activationMessage(
     `2. Register with this email: ${code.ownerEmail}`,
     `3. Enter this activation code: ${code.code}`,
     '',
-    `The code works once and expires on ${formatDate(new Date(code.expiresAt), timeZone)}.`,
+    `The code works once, until ${formatDate(new Date(code.redeemBy), timeZone)}. ${access}`,
   ].join('\n')
 }
 

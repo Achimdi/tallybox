@@ -14,6 +14,8 @@ interface ListItemProps {
   to?: string
   /** Makes the row a button. */
   onClick?: () => void
+  /** Let long text wrap instead of cutting it off with "..." (for rows whose details matter). */
+  wrap?: boolean
   className?: string
 }
 
@@ -23,6 +25,7 @@ export function ListItem({
   subtitle,
   leading,
   trailing,
+  wrap = false,
   to,
   onClick,
   className,
@@ -39,9 +42,18 @@ export function ListItem({
         <span className="flex shrink-0 items-center text-ink-muted">{leading}</span>
       ) : null}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-body font-medium text-ink">{title}</span>
+        <span className={cn('text-body font-medium text-ink', wrap ? 'break-words' : 'truncate')}>
+          {title}
+        </span>
         {subtitle ? (
-          <span className="truncate text-label font-normal text-ink-muted">{subtitle}</span>
+          <span
+            className={cn(
+              'text-label font-normal text-ink-muted',
+              wrap ? 'break-words' : 'truncate',
+            )}
+          >
+            {subtitle}
+          </span>
         ) : null}
       </span>
       {trailing ? <span className="flex shrink-0 items-center gap-2">{trailing}</span> : null}

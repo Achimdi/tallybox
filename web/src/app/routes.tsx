@@ -30,7 +30,9 @@ const CreateStaffPage = lazy(() => import('@/features/staff/CreateStaffPage'))
 
 // Super-admin. Only downloaded after the guard has let the super-admin in.
 const AdminBusinessesPage = lazy(() => import('@/features/admin/AdminBusinessesPage'))
+const AdminBusinessDetailPage = lazy(() => import('@/features/admin/AdminBusinessDetailPage'))
 const AdminCodesPage = lazy(() => import('@/features/admin/AdminCodesPage'))
+const GenerateCodePage = lazy(() => import('@/features/admin/GenerateCodePage'))
 
 // The design gallery is for development only. This import is removed from production builds.
 const devRoutes: RouteObject[] = import.meta.env.DEV
@@ -65,7 +67,11 @@ export const routes: RouteObject[] = [
       },
       {
         element: <PublicLayout />,
-        children: [{ path: 'suspended', Component: SuspendedPage }, ...devRoutes],
+        children: [
+          { path: 'suspended', element: <SuspendedPage fallbackReason="suspended" /> },
+          { path: 'access-ended', element: <SuspendedPage fallbackReason="access_ended" /> },
+          ...devRoutes,
+        ],
       },
 
       // Staff portal: takes orders only.
@@ -116,7 +122,9 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <Navigate to="businesses" replace /> },
               { path: 'businesses', Component: AdminBusinessesPage },
+              { path: 'businesses/:businessId', Component: AdminBusinessDetailPage },
               { path: 'codes', Component: AdminCodesPage },
+              { path: 'codes/new', Component: GenerateCodePage },
             ],
           },
         ],

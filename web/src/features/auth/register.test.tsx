@@ -1,35 +1,22 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppError } from '@/lib/errors'
+import { describe, expect, it } from 'vitest'
+import { createSupabaseApi } from '@/api/supabase'
+import { DAY_MS } from '@/domain/access'
+import { createTestApi, DEMO, type TestApi } from '@/test/mockApi'
 import { renderApp } from '@/test/render'
-import { isBusinessCodeAvailable, registerBusiness } from './api'
 
-vi.mock('./api', () => ({
-  registerBusiness: vi.fn(),
-  isBusinessCodeAvailable: vi.fn(),
-}))
-
-// A Turnstile check that has already passed.
-vi.mock('./useTurnstile', () => ({
-  useTurnstile: () => ({
-    enabled: true,
-    token: 'turnstile-token',
-    element: null,
-    reset: () => undefined,
-  }),
-}))
-
-const mockRegister = vi.mocked(registerBusiness)
-const mockAvailable = vi.mocked(isBusinessCodeAvailable)
-
-const VALID = {
-  'Business name': "Ada's Pharmacy",
-  'Business code': 'Adas-Pharmacy',
-  'Your full name': 'Ada Obi',
-  Email: 'ada@shop.test',
-  Password: 'correct-horse',
-  'Activation code': 'tb-7k4m-x9qd',
+/** The developer makes a code for this email, then signs out, as in real life. */
+async function codeFor(test: TestApi, email: string, redeemDays = 7) {
+  await test.api.auth.signIn(DEMO.developer)
+  const code = await test.api.admin.generateActivationCode({
+    ownerEmail: email,
+    note: 'test',
+    redeemDays,
+    accessDays: 90,
+  })
+  await test.api.auth.signOut()
+  return code.code
 }
 
 function field(label: string): HTMLElement {
@@ -43,42 +30,48 @@ async function fill(values: Record<string, string>) {
   }
 }
 
-async function openRegister() {
-  const view = renderApp({ path: '/register' })
+function valid(code: string) {
+  return {
+    'Business name': "Ada's Pharmacy",
+    'Business code': 'Adas-Pharmacy',
+    'Your full name': 'Ada Obi',
+    Email: 'ada@shop.test',
+    Password: 'correct-horse',
+    'Activation code': code.toLowerCase(),
+  }
+}
+
+async function openRegister(test: TestApi) {
+  const view = renderApp({ path: '/register', api: test.api })
   await screen.findByRole('heading', { name: 'Register your business' })
   return view
 }
 
-beforeEach(() => {
-  mockRegister.mockReset()
-  mockAvailable.mockReset()
-  mockAvailable.mockResolvedValue(true)
-})
-
 describe('registration', () => {
-  it('registers the business, then sends the owner to sign in', async () => {
-    mockRegister.mockResolvedValue({ businessCode: 'adas-pharmacy' })
-    const { router } = await openRegister()
-    await fill(VALID)
+  it('registers the business, sends the owner to sign in, and shows it to the developer', async () => {
+    const test = createTestApi()
+    const code = await codeFor(test, 'ada@shop.test')
+    const { router } = await openRegister(test)
+    await fill(valid(code))
+    expect(await screen.findByText('adas-pharmacy is available')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Register business' }))
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/login/owner'))
-    expect(mockRegister).toHaveBeenCalledWith({
-      businessName: "Ada's Pharmacy",
-      businessCode: 'adas-pharmacy',
-      ownerName: 'Ada Obi',
-      email: 'ada@shop.test',
-      password: 'correct-horse',
-      phone: '',
-      activationCode: 'tb-7k4m-x9qd',
-      turnstileToken: 'turnstile-token',
-    })
     expect(await screen.findByText('Your business is registered')).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toHaveValue('ada@shop.test')
+
+    await test.api.auth.signIn(DEMO.developer)
+    const businesses = await test.api.admin.listBusinesses()
+    expect(businesses.find((business) => business.businessCode === 'adas-pharmacy')).toMatchObject({
+      name: "Ada's Pharmacy",
+      ownerEmail: 'ada@shop.test',
+      status: 'active',
+    })
   })
 
   it('checks the details in the browser before sending anything', async () => {
-    await openRegister()
+    const test = createTestApi()
+    await openRegister(test)
     await fill({
       'Business name': 'A',
       'Business code': 'My Shop',
@@ -94,54 +87,63 @@ describe('registration', () => {
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     expect(screen.getByText('Use at least 8 characters.')).toBeInTheDocument()
     expect(screen.getByText(/exactly as you received it/)).toBeInTheDocument()
-    expect(mockRegister).not.toHaveBeenCalled()
-  })
-
-  it('says so as soon as a typed business code is available', async () => {
-    await openRegister()
-    await userEvent.type(field('Business code'), 'adas-pharmacy')
-    expect(await screen.findByText('adas-pharmacy is available')).toBeInTheDocument()
-    expect(mockAvailable).toHaveBeenCalledWith('adas-pharmacy')
   })
 
   it('stops a taken business code before the form is sent', async () => {
-    mockAvailable.mockResolvedValue(false)
-    await openRegister()
-    await fill(VALID)
+    const test = createTestApi()
+    await openRegister(test)
+    await userEvent.type(field('Business code'), 'sunrise-demo')
     expect(
       await screen.findByText('That business code is taken. Choose another.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Register business' })).toBeDisabled()
   })
 
-  it('does not ask the server about a badly formed business code', async () => {
-    await openRegister()
-    await userEvent.type(field('Business code'), 'ab')
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    expect(mockAvailable).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['activation_code_expired', 'Activation code', 'That activation code has expired'],
-    ['activation_code_invalid', 'Activation code', "That activation code doesn't match"],
-    ['activation_code_used', 'Activation code', 'That activation code was already used'],
-    ['business_code_taken', 'Business code', 'That business code is taken'],
-    ['email_taken', 'Email', 'That email already has an account'],
-  ] as const)('puts a %s refusal on the right field', async (code, label, message) => {
-    mockRegister.mockRejectedValue(new AppError(code))
-    await openRegister()
-    await fill(VALID)
+  it('puts a code made for another email on the activation code field', async () => {
+    const test = createTestApi()
+    const code = await codeFor(test, 'someone.else@shop.test')
+    await openRegister(test)
+    await fill(valid(code))
     await userEvent.click(screen.getByRole('button', { name: 'Register business' }))
 
-    await waitFor(() => expect(field(label)).toBeInvalid())
-    expect(field(label)).toHaveAccessibleDescription(expect.stringContaining(message))
+    await waitFor(() => expect(field('Activation code')).toBeInvalid())
+    expect(field('Activation code')).toHaveAccessibleDescription(
+      expect.stringContaining("That activation code doesn't match"),
+    )
   })
 
-  it('shows other failures above the form', async () => {
-    mockRegister.mockRejectedValue(new AppError('rate_limited'))
-    await openRegister()
-    await fill(VALID)
+  it('explains an expired code', async () => {
+    const test = createTestApi()
+    const code = await codeFor(test, 'ada@shop.test', 1)
+    test.advanceTime(2 * DAY_MS)
+    await openRegister(test)
+    await fill(valid(code))
     await userEvent.click(screen.getByRole('button', { name: 'Register business' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts')
+
+    await waitFor(() =>
+      expect(field('Activation code')).toHaveAccessibleDescription(
+        expect.stringContaining('That activation code has expired'),
+      ),
+    )
+  })
+
+  it('puts an email that already has an account on the email field', async () => {
+    const test = createTestApi()
+    const code = await codeFor(test, DEMO.owner.email)
+    await openRegister(test)
+    await fill({ ...valid(code), Email: DEMO.owner.email })
+    await userEvent.click(screen.getByRole('button', { name: 'Register business' }))
+
+    await waitFor(() =>
+      expect(field('Email')).toHaveAccessibleDescription(
+        expect.stringContaining('That email already has an account'),
+      ),
+    )
+  })
+
+  it('stays switched off where a bot check is needed but not set up', async () => {
+    renderApp({ path: '/register', api: createSupabaseApi() })
+    expect(await screen.findByText("Registration isn't switched on yet")).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Register business' })).toBeDisabled()
   })
 })
