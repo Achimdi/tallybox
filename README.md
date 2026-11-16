@@ -18,7 +18,7 @@ Online inventory and sales for small shops, pharmacies and restaurants. A websit
 | 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                                       |
 | 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                                       |
 
-The backend (database migrations, eight Edge Functions, 354 database tests and 32 function tests) lives in `supabase/`. Run its tests with `npm run db:test:local` and `npm run functions:test`; neither needs Docker or an account.
+The backend (database migrations, eight Edge Functions, 355 database tests and 32 function tests) lives in `supabase/`. Run its tests with `npm run db:test:local` and `npm run functions:test`; neither needs Docker or an account.
 
 ## Run it
 
