@@ -4,7 +4,7 @@
 
 begin;
 
-select plan(49);
+select plan(50);
 
 select tests.create_user('dev@tallybox.test', '{"role":"super_admin"}', 'aaaaaaaa-0000-0000-0000-000000000001');
 select tests.create_user('owner-a@a.test', '{"role":"owner","business_id":"b0000000-0000-0000-0000-00000000000a"}', 'aaaaaaaa-0000-0000-0000-0000000000a1');
@@ -133,6 +133,11 @@ select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from public.businesses), 0, 'the owner of an ended business sees no business');
 select is((select count(*)::int from public.profiles), 0, 'and no profiles');
 select is(public.get_session_state() ->> 'access', 'ended', 'the session state says access has ended, so the app can explain');
+
+select throws_ok(
+  $$ select public.upsert_item(gen_random_uuid(), 'Tea', null, null, 100, null, null) $$,
+  'P0001', 'access_ended', 'the owner of an ended business can change nothing, and is told why'
+);
 
 select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from public.businesses), 0, 'staff of an ended business see no business');

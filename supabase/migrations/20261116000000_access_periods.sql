@@ -549,3 +549,36 @@ end;
 $$;
 
 grant execute on function public.admin_owner_email(uuid, uuid) to service_role;
+
+-- Owner-only actions say which block applies, so the app can show the right
+-- screen: 'business_suspended' or 'access_ended'.
+create or replace function private.require_owner(p_user_id uuid) returns uuid
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_profile public.profiles%rowtype;
+  v_access text;
+begin
+  select * into v_profile from public.profiles p where p.id = p_user_id;
+  if not found then
+    perform private.fail('permission_denied');
+  end if;
+  if not v_profile.active then
+    perform private.fail('account_disabled');
+  end if;
+  v_access := private.business_access_state(v_profile.business_id);
+  if v_access = 'suspended' then
+    perform private.fail('business_suspended');
+  end if;
+  if v_access = 'ended' then
+    perform private.fail('access_ended');
+  end if;
+  if v_profile.role <> 'owner' then
+    perform private.fail('permission_denied');
+  end if;
+  return v_profile.business_id;
+end;
+$$;
