@@ -11,10 +11,11 @@ import {
   type StockFacts,
 } from './orders'
 
+const own = { tracksOwnStock: true, supplies: [] }
 const items = new Map<string, StockFacts>([
-  ['para', { id: 'para', name: 'Paracetamol', price: 45000, quantity: 10, active: true }],
-  ['water', { id: 'water', name: 'Water', price: 25000, quantity: 0, active: true }],
-  ['old', { id: 'old', name: 'Old Stock', price: 1000, quantity: 50, active: false }],
+  ['para', { id: 'para', name: 'Paracetamol', price: 45000, quantity: 10, active: true, ...own }],
+  ['water', { id: 'water', name: 'Water', price: 25000, quantity: 0, active: true, ...own }],
+  ['old', { id: 'old', name: 'Old Stock', price: 1000, quantity: 50, active: false, ...own }],
 ])
 
 describe('normalizeCart', () => {
@@ -43,6 +44,7 @@ describe('checkOrder', () => {
         { itemId: 'para', name: 'Paracetamol', unitPrice: 45000, quantity: 3, lineTotal: 135000 },
       ],
       total: 135000,
+      supplyDeductions: [],
     })
   })
 
@@ -62,6 +64,7 @@ describe('checkOrder', () => {
         { itemId: 'para', name: 'Paracetamol', available: 10, requested: 11 },
         { itemId: 'water', name: 'Water', available: 0, requested: 1 },
       ],
+      supplyProblems: [],
     })
   })
 

@@ -8,7 +8,18 @@
  *     never from the cart, and are copied onto the order (a snapshot), so a
  *     later price change never rewrites an old receipt.
  *   - Stock is checked per item when confirming. A held order takes no stock.
+ *   - Items that use shared supplies are checked against the supplies too, with
+ *     every line's needs added up first (10 Coke + 10 Fanta need 20 bottles).
  */
+
+import {
+  supplyDeductions,
+  supplyProblems,
+  type SellableFacts,
+  type SupplyDeduction,
+  type SupplyFacts,
+  type SupplyProblem,
+} from './supplies'
 
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'card'
 
@@ -58,11 +69,8 @@ export function normalizeCart(lines: readonly CartLine[]): CartLine[] | null {
 }
 
 /** What the order needs to know about an item at the moment of confirming. */
-export interface StockFacts {
-  id: string
-  name: string
+export interface StockFacts extends SellableFacts {
   price: number
-  quantity: number
   active: boolean
 }
 
@@ -74,6 +82,7 @@ export interface PricedLine {
   lineTotal: number
 }
 
+/** An item that counts its own stock and has too little of it. */
 export interface StockProblem {
   itemId: string
   name: string
@@ -82,14 +91,23 @@ export interface StockProblem {
 }
 
 export type OrderCheck =
-  | { ok: true; lines: PricedLine[]; total: number }
+  | { ok: true; lines: PricedLine[]; total: number; supplyDeductions: SupplyDeduction[] }
   | { ok: false; reason: 'item_unavailable'; names: string[] }
-  | { ok: false; reason: 'insufficient_stock'; problems: StockProblem[] }
+  | {
+      ok: false
+      reason: 'insufficient_stock'
+      problems: StockProblem[]
+      supplyProblems: SupplyProblem[]
+    }
 
-/** Prices the cart from current item data and checks stock for every line. */
+/**
+ * Prices the cart from current item data and checks stock: each item's own
+ * stock (if it counts it) and every shared supply, all lines added up.
+ */
 export function checkOrder(
   lines: readonly CartLine[],
   itemsById: ReadonlyMap<string, StockFacts>,
+  suppliesById: ReadonlyMap<string, SupplyFacts> = new Map(),
 ): OrderCheck {
   const unavailable: string[] = []
   const problems: StockProblem[] = []
@@ -101,11 +119,11 @@ export function checkOrder(
       unavailable.push(item?.name ?? 'An item')
       continue
     }
-    if (line.quantity > item.quantity) {
+    if (item.tracksOwnStock && line.quantity > item.quantity) {
       problems.push({
         itemId: item.id,
         name: item.name,
-        available: item.quantity,
+        available: Math.max(0, item.quantity),
         requested: line.quantity,
       })
     }
@@ -119,8 +137,16 @@ export function checkOrder(
   }
 
   if (unavailable.length > 0) return { ok: false, reason: 'item_unavailable', names: unavailable }
-  if (problems.length > 0) return { ok: false, reason: 'insufficient_stock', problems }
-  return { ok: true, lines: priced, total: priced.reduce((sum, line) => sum + line.lineTotal, 0) }
+  const short = supplyProblems(lines, itemsById, suppliesById)
+  if (problems.length > 0 || short.length > 0) {
+    return { ok: false, reason: 'insufficient_stock', problems, supplyProblems: short }
+  }
+  return {
+    ok: true,
+    lines: priced,
+    total: priced.reduce((sum, line) => sum + line.lineTotal, 0),
+    supplyDeductions: supplyDeductions(lines, itemsById),
+  }
 }
 
 /** "#0042". Order numbers count up per business. */

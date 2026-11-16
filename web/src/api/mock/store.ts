@@ -14,7 +14,7 @@ import type { RateCounters } from '@/domain/rateLimit'
 
 export const STORAGE_KEY = 'tb.demo.v1'
 // Bump when the shape changes: older demo data in a browser is then replaced by the new seed.
-const VERSION = 3
+const VERSION = 4
 
 export interface MockBusiness {
   id: string
@@ -81,11 +81,53 @@ export interface MockItem {
   category: string | null
   unit: string | null
   price: number
+  /** Count this item's own stock. When false, quantity is kept but not used. */
+  tracksOwnStock: boolean
   quantity: number
   lowStockLevel: number
   active: boolean
   createdAt: string
   updatedAt: string
+}
+
+/** A shared supply: packaging or materials used by several items (bottles, caps…). */
+export interface MockSupply {
+  id: string
+  businessId: string
+  name: string
+  unit: string | null
+  quantity: number
+  lowStockLevel: number
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Kept apart, like item costs: only owners may read them. */
+export interface MockSupplyCost {
+  supplyId: string
+  businessId: string
+  costPrice: number
+}
+
+/** One supply an item uses per unit sold. */
+export interface MockItemSupply {
+  itemId: string
+  supplyId: string
+  businessId: string
+  unitsPerSale: number
+}
+
+/** A permanent record of a change to how an item counts stock. */
+export interface MockStockModeChange {
+  id: string
+  businessId: string
+  itemId: string
+  changedBy: string
+  changedByName: string
+  changedAt: string
+  before: { tracksOwnStock: boolean; supplies: { supplyId: string; unitsPerSale: number }[] }
+  after: { tracksOwnStock: boolean; supplies: { supplyId: string; unitsPerSale: number }[] }
 }
 
 /** Kept apart from items: only owners may ever read cost prices. */
@@ -101,8 +143,14 @@ export type { MovementType }
 export interface MockStockMovement {
   id: string
   businessId: string
-  itemId: string
+  /** Exactly one of itemId and supplyId is set. */
+  itemId: string | null
+  supplyId: string | null
+  /** The item's or supply's name at the time. */
   itemName: string
+  /** For supply entries caused by a sale or a void: the item that used the supply. */
+  sourceItemId: string | null
+  sourceItemName: string | null
   type: MovementType
   delta: number
   quantityBefore: number
@@ -187,6 +235,10 @@ export interface MockDb {
   activationCodes: MockActivationCode[]
   items: MockItem[]
   itemCosts: MockItemCost[]
+  supplies: MockSupply[]
+  supplyCosts: MockSupplyCost[]
+  itemSupplies: MockItemSupply[]
+  stockModeChanges: MockStockModeChange[]
   stockMovements: MockStockMovement[]
   orders: MockOrder[]
   heldOrders: MockHeldOrder[]

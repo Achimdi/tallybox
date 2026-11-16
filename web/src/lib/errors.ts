@@ -117,6 +117,18 @@ const USER_MESSAGES = {
     title: 'That item is archived',
     description: 'Restore it first, then try again.',
   },
+  supply_name_taken: {
+    title: 'A supply with that name already exists',
+    description: 'Use a different name, or edit the existing supply (it may be archived).',
+  },
+  supply_in_use: {
+    title: 'Items still use this supply',
+    description: 'Change those items to stop using it first, then archive it.',
+  },
+  stock_not_counted: {
+    title: "This item's own stock isn't counted",
+    description: 'Restock or adjust the shared supplies it uses instead, or turn on its own stock.',
+  },
   wrong_password: {
     title: "Your current password isn't right",
     description: 'Check it and try again.',

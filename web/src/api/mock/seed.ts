@@ -2,6 +2,7 @@ import { DAY_MS } from '@/domain/access'
 import { hashActivationCode } from '@/domain/activationCodes'
 import type { DemoAccount } from '../types'
 import { hashPassword } from './passwords'
+import { createDrinksSeed } from './seedDrinks'
 import { createSalesSeed } from './seedSales'
 import {
   MOCK_DB_VERSION,
@@ -16,6 +17,7 @@ import {
  * Dates are relative to "now", so the demo always looks current.
  *
  * Sunrise Pharmacy has the full catalogue and a week of trading (seedSales.ts).
+ * Green Leaf Restaurant's drinks share bottles and caps (seedDrinks.ts).
  */
 
 /** One password for every demo account. Shown on the login pages in demo mode. */
@@ -32,6 +34,9 @@ export const DEMO_IDS = {
   cornerOwner: 'user-corner-owner',
   greenLeaf: 'biz-green-leaf',
   greenLeafOwner: 'user-green-leaf-owner',
+  greenLeafStaff: 'user-green-leaf-tobi',
+  harbour: 'biz-harbour',
+  harbourOwner: 'user-harbour-owner',
   dailyNeeds: 'biz-daily-needs',
   dailyNeedsOwner: 'user-daily-needs-owner',
 } as const
@@ -69,6 +74,20 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     label: 'Owner, Green Leaf Restaurant',
     portal: 'owner',
     email: 'greenleaf@demo.tallybox.test',
+    password: DEMO_PASSWORD,
+    hint: 'drinks share bottles and caps',
+  },
+  {
+    label: 'Staff, Green Leaf Restaurant',
+    portal: 'staff',
+    businessCode: 'green-leaf',
+    username: 'tobi',
+    password: DEMO_PASSWORD,
+  },
+  {
+    label: 'Owner, Harbour Bakery',
+    portal: 'owner',
+    email: 'harbour@demo.tallybox.test',
     password: DEMO_PASSWORD,
     hint: 'suspended',
   },
@@ -150,11 +169,21 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
       name: 'Green Leaf Restaurant',
       businessCode: 'green-leaf',
       ownerId: DEMO_IDS.greenLeafOwner,
+      accessEndsAt: at(40),
+      address: '4 Garden Road, Ibadan',
+      receiptFooter: 'Thank you! Bring back our bottles.',
+      createdAt: at(-120),
+    }),
+    business({
+      id: DEMO_IDS.harbour,
+      name: 'Harbour Bakery',
+      businessCode: 'harbour-bakery',
+      ownerId: DEMO_IDS.harbourOwner,
       status: 'suspended',
       accessEndsAt: at(40),
       suspendedAt: at(-2),
       suspendedReason: 'Asked to pause while the shop is renovated (demo).',
-      createdAt: at(-120),
+      createdAt: at(-110),
     }),
     business({
       id: DEMO_IDS.dailyNeeds,
@@ -223,6 +252,23 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
       businessId: DEMO_IDS.greenLeaf,
       email: 'greenleaf@demo.tallybox.test',
       displayName: 'Ngozi Udo',
+      lastLoginAt: at(-0.3),
+    }),
+    user({
+      id: DEMO_IDS.greenLeafStaff,
+      role: 'staff',
+      businessId: DEMO_IDS.greenLeaf,
+      username: 'tobi',
+      displayName: 'Tobi Ade',
+      createdBy: DEMO_IDS.greenLeafOwner,
+      lastLoginAt: at(-0.2),
+    }),
+    user({
+      id: DEMO_IDS.harbourOwner,
+      role: 'owner',
+      businessId: DEMO_IDS.harbour,
+      email: 'harbour@demo.tallybox.test',
+      displayName: 'Kemi Lawal',
       lastLoginAt: at(-3),
     }),
     user({
@@ -315,15 +361,29 @@ export async function createSeed(now: Date = new Date()): Promise<MockDb> {
   })
   sunrise.orderCounter = sales.orderCounter
 
+  const greenLeaf = businesses.find((candidate) => candidate.id === DEMO_IDS.greenLeaf)!
+  const drinks = createDrinksSeed({
+    now,
+    businessId: greenLeaf.id,
+    timezone: greenLeaf.timezone,
+    owner: { id: DEMO_IDS.greenLeafOwner, name: 'Ngozi Udo' },
+    staff: { id: DEMO_IDS.greenLeafStaff, name: 'Tobi Ade' },
+  })
+  greenLeaf.orderCounter = drinks.orderCounter
+
   return {
     version: MOCK_DB_VERSION,
     businesses,
     users,
     activationCodes,
-    items: sales.items,
-    itemCosts: sales.itemCosts,
-    stockMovements: sales.stockMovements,
-    orders: sales.orders,
+    items: [...sales.items, ...drinks.items],
+    itemCosts: [...sales.itemCosts, ...drinks.itemCosts],
+    supplies: drinks.supplies,
+    supplyCosts: drinks.supplyCosts,
+    itemSupplies: drinks.itemSupplies,
+    stockModeChanges: [],
+    stockMovements: [...sales.stockMovements, ...drinks.stockMovements],
+    orders: [...sales.orders, ...drinks.orders],
     heldOrders: sales.heldOrders,
     restocks: sales.restocks,
     rateLimits: {},

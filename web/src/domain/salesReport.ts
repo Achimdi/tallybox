@@ -32,12 +32,26 @@ export interface StaffSales extends SalesByKey {
 }
 
 export interface StockValue {
-  /** Stock on hand valued at cost, for items with a cost price. */
+  /** Own stock on hand valued at cost, for items with a cost price. */
   atCost: number
   /** The same items valued at their selling price. */
   atPrice: number
   itemsWithCost: number
   itemsWithoutCost: number
+  /** Shared supplies on hand valued at cost, for supplies with a cost price. */
+  suppliesAtCost: number
+  suppliesWithoutCost: number
+}
+
+/** How much of a shared supply completed orders in the range used, and how much is left now. */
+export interface SupplyReport {
+  supplyId: string
+  name: string
+  unit: string | null
+  used: number
+  remaining: number
+  /** Which items used it, most first. */
+  byItem: { itemId: string; name: string; used: number }[]
 }
 
 export interface SalesReport extends ReportRange {
@@ -53,8 +67,10 @@ export interface SalesReport extends ReportRange {
   byDay: DaySales[]
   /** Every item on sale, best seller first. Items that sold nothing come last. */
   items: ItemSales[]
-  /** Now, not over the range. Null when no item has a cost price. */
+  /** Now, not over the range. Null when nothing has a cost price. */
   stockValue: StockValue | null
+  /** Shared supplies: used in the range and remaining now. Empty when the business has none. */
+  supplies: SupplyReport[]
 }
 
 /** Number of days in a range, counting both ends. */
@@ -79,13 +95,44 @@ interface CatalogueItem {
   quantity: number
   price: number
   active: boolean
+  /** Items that don't count their own stock are left out of stock value. Default true. */
+  tracksOwnStock?: boolean
 }
 
+interface CatalogueSupply {
+  id: string
+  name: string
+  unit: string | null
+  quantity: number
+  active: boolean
+}
+
+/** One supply ledger entry made by a sale. */
+export interface SupplySaleFact {
+  supplyId: string
+  orderId: string | null
+  sourceItemId: string | null
+  sourceItemName: string | null
+  /** Negative: the amount the sale used. */
+  delta: number
+}
+
+export interface SupplyFacts {
+  supplies: readonly CatalogueSupply[]
+  costs: Readonly<Record<string, number>>
+  /** Supply entries of type "sale". Those of voided or out-of-range orders are ignored. */
+  sales: readonly SupplySaleFact[]
+}
+
+/** Orders here carry their id so supply use can be matched to them. */
+type ReportOrder = OrderFacts & { id?: string }
+
 export function buildSalesReport(
-  orders: readonly OrderFacts[],
+  orders: readonly ReportOrder[],
   range: ReportRange,
   catalogue: readonly CatalogueItem[],
   costs: Readonly<Record<string, number>>,
+  supplyFacts: SupplyFacts = { supplies: [], costs: {}, sales: [] },
 ): SalesReport {
   const byPaymentMethod = Object.fromEntries(
     PAYMENT_METHODS.map((method) => [method.value, { sales: 0, orders: 0 }]),
@@ -147,17 +194,74 @@ export function buildSalesReport(
     byStaff: [...byStaff.values()].sort((a, b) => b.sales - a.sales),
     byDay: [...byDay.values()],
     items: [...sold, ...unsold],
-    stockValue: valueStock(catalogue, costs),
+    stockValue: valueStock(catalogue, costs, supplyFacts),
+    supplies: reportSupplies(inside, supplyFacts),
   }
+}
+
+/** Supply use counts completed orders in the range only; a voided order used nothing. */
+function reportSupplies(inside: readonly ReportOrder[], facts: SupplyFacts): SupplyReport[] {
+  const completed = new Set(
+    inside.filter((order) => order.status === 'completed' && order.id).map((order) => order.id),
+  )
+  return facts.supplies
+    .map((supply) => {
+      const byItem = new Map<string, { itemId: string; name: string; used: number }>()
+      let used = 0
+      for (const sale of facts.sales) {
+        if (sale.supplyId !== supply.id || !sale.orderId || !completed.has(sale.orderId)) continue
+        const amount = -sale.delta
+        used += amount
+        const key = sale.sourceItemId ?? 'unknown'
+        const entry = byItem.get(key) ?? {
+          itemId: key,
+          name: sale.sourceItemName ?? 'An item',
+          used: 0,
+        }
+        entry.used += amount
+        byItem.set(key, entry)
+      }
+      return {
+        supplyId: supply.id,
+        name: supply.name,
+        unit: supply.unit,
+        used,
+        remaining: supply.quantity,
+        byItem: [...byItem.values()].sort((a, b) => b.used - a.used),
+        active: supply.active,
+      }
+    })
+    .filter((supply) => supply.active || supply.used > 0)
+    .map(({ active: _active, ...supply }) => supply)
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function valueStock(
   catalogue: readonly CatalogueItem[],
   costs: Readonly<Record<string, number>>,
+  supplyFacts: SupplyFacts,
 ): StockValue | null {
-  const value: StockValue = { atCost: 0, atPrice: 0, itemsWithCost: 0, itemsWithoutCost: 0 }
+  const value: StockValue = {
+    atCost: 0,
+    atPrice: 0,
+    itemsWithCost: 0,
+    itemsWithoutCost: 0,
+    suppliesAtCost: 0,
+    suppliesWithoutCost: 0,
+  }
+  let suppliesWithCost = 0
+  for (const supply of supplyFacts.supplies) {
+    if (!supply.active) continue
+    const cost = supplyFacts.costs[supply.id]
+    if (cost === undefined) {
+      value.suppliesWithoutCost += 1
+    } else {
+      suppliesWithCost += 1
+      value.suppliesAtCost += cost * Math.max(0, supply.quantity)
+    }
+  }
   for (const item of catalogue) {
-    if (!item.active) continue
+    if (!item.active || item.tracksOwnStock === false) continue
     const cost = costs[item.id]
     if (cost === undefined) {
       value.itemsWithoutCost += 1
@@ -167,7 +271,7 @@ function valueStock(
     value.atCost += cost * Math.max(0, item.quantity)
     value.atPrice += item.price * Math.max(0, item.quantity)
   }
-  return value.itemsWithCost === 0 ? null : value
+  return value.itemsWithCost === 0 && suppliesWithCost === 0 ? null : value
 }
 
 export type Granularity = 'day' | 'week' | 'month'

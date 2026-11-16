@@ -65,18 +65,29 @@ export function describeAdjustment(systemQuantity: number, counted: number): str
   return `${formatDelta(counted - systemQuantity)} (from ${systemQuantity} to ${counted})`
 }
 
+/** One line of a delivery: an item or a shared supply (exactly one of the two). */
 export interface RestockLine {
-  itemId: string
+  itemId?: string
+  supplyId?: string
   quantity: number
   unitCost: number | null
 }
 
-/** Each item once, whole quantities of at least 1, costs not negative. */
+/** "item:abc" or "supply:xyz", so a line's target can be compared and looked up. */
+export function stockTargetKey(line: {
+  itemId?: string | undefined
+  supplyId?: string | undefined
+}): string {
+  return line.itemId ? `item:${line.itemId}` : `supply:${line.supplyId ?? ''}`
+}
+
+/** Each item or supply once, whole quantities of at least 1, costs not negative. */
 export function restockLinesProblem(
   lines: readonly RestockLine[],
-): 'empty' | 'duplicate' | 'quantity' | 'cost' | null {
+): 'empty' | 'target' | 'duplicate' | 'quantity' | 'cost' | null {
   if (lines.length === 0) return 'empty'
-  if (new Set(lines.map((line) => line.itemId)).size !== lines.length) return 'duplicate'
+  if (lines.some((line) => Boolean(line.itemId) === Boolean(line.supplyId))) return 'target'
+  if (new Set(lines.map(stockTargetKey)).size !== lines.length) return 'duplicate'
   if (
     lines.some(
       (line) =>

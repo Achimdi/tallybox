@@ -31,9 +31,11 @@ import {
   normalizeCart,
   ORDER_LIMITS,
   type CartLine,
+  type StockFacts,
 } from '@/domain/orders'
 import { itemSales, summarizeDay } from '@/domain/reports'
-import { buildSalesReport, inRange, isValidRange } from '@/domain/salesReport'
+import { buildSalesReport, inRange, isValidRange, type SupplySaleFact } from '@/domain/salesReport'
+import { availableToSell, SUPPLY_LIMITS, validSupplyUses, type SupplyUse } from '@/domain/supplies'
 import {
   isAdjustReason,
   restockLinesProblem,
@@ -55,9 +57,11 @@ import type {
   BusinessSettings,
   HeldOrder,
   Item,
+  ItemSupplyUse,
   Order,
   Page,
   StockMovement,
+  Supply,
 } from '../types'
 import { hashPassword, newSalt, passwordMatches } from './passwords'
 import { createSeed, DEMO_ACCOUNTS } from './seed'
@@ -71,8 +75,22 @@ import {
   type MockItem,
   type MockOrder,
   type MockStockMovement,
+  type MockSupply,
   type MockUser,
 } from './store'
+
+type StockMode = { tracksOwnStock: boolean; supplies: SupplyUse[] }
+
+/** True when two ways of counting stock are the same (supply order doesn't matter). */
+function sameStockMode(a: StockMode, b: StockMode): boolean {
+  if (a.tracksOwnStock !== b.tracksOwnStock || a.supplies.length !== b.supplies.length) return false
+  const key = (mode: StockMode) =>
+    mode.supplies
+      .map((use) => `${use.supplyId}:${use.unitsPerSale}`)
+      .sort()
+      .join('|')
+  return key(a) === key(b)
+}
 
 /**
  * The Phase 1 implementation of TallyboxApi: demo data kept in this browser.
@@ -325,17 +343,84 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
 
   const todayKey = (business: MockBusiness) => dateKey(now(), business.timezone)
 
-  function toItem(item: MockItem): Item {
+  /** The supplies an item uses per unit sold. */
+  function usesOf(db: MockDb, itemId: string): SupplyUse[] {
+    return db.itemSupplies
+      .filter((use) => use.itemId === itemId)
+      .map((use) => ({ supplyId: use.supplyId, unitsPerSale: use.unitsPerSale }))
+  }
+
+  function suppliesOf(db: MockDb, businessId: string): Map<string, MockSupply> {
+    return new Map(
+      db.supplies
+        .filter((supply) => supply.businessId === businessId)
+        .map((supply) => [supply.id, supply]),
+    )
+  }
+
+  function sellableFacts(db: MockDb, item: MockItem): StockFacts {
     return {
       id: item.id,
       name: item.name,
-      category: item.category,
-      unit: item.unit,
       price: item.price,
-      quantity: item.quantity,
-      lowStockLevel: item.lowStockLevel,
       active: item.active,
+      tracksOwnStock: item.tracksOwnStock,
+      quantity: item.quantity,
+      supplies: usesOf(db, item.id),
     }
+  }
+
+  function describeUses(db: MockDb, uses: readonly SupplyUse[]): ItemSupplyUse[] {
+    return uses.map((use) => {
+      const supply = db.supplies.find((candidate) => candidate.id === use.supplyId)
+      return {
+        supplyId: use.supplyId,
+        name: supply?.name ?? 'Removed supply',
+        unit: supply?.unit ?? null,
+        unitsPerSale: use.unitsPerSale,
+      }
+    })
+  }
+
+  /** An item as the app sees it, with what can be sold now worked out from its stock and supplies. */
+  function toItem(db: MockDb) {
+    return (item: MockItem): Item => {
+      const uses = usesOf(db, item.id)
+      return {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        price: item.price,
+        tracksOwnStock: item.tracksOwnStock,
+        quantity: item.quantity,
+        supplies: describeUses(db, uses),
+        available: availableToSell(sellableFacts(db, item), suppliesOf(db, item.businessId)),
+        lowStockLevel: item.lowStockLevel,
+        active: item.active,
+      }
+    }
+  }
+
+  function toSupply(db: MockDb) {
+    return (supply: MockSupply): Supply => ({
+      id: supply.id,
+      name: supply.name,
+      unit: supply.unit,
+      quantity: supply.quantity,
+      lowStockLevel: supply.lowStockLevel,
+      active: supply.active,
+      usedBy: db.itemSupplies
+        .filter((use) => use.supplyId === supply.id)
+        .map((use) => ({ use, item: db.items.find((candidate) => candidate.id === use.itemId) }))
+        .filter(({ item }) => item?.active)
+        .map(({ use, item }) => ({
+          itemId: use.itemId,
+          name: item!.name,
+          unitsPerSale: use.unitsPerSale,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    })
   }
 
   function toOrder(order: MockOrder): Order {
@@ -370,7 +455,9 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         quantity: line.quantity,
         name: item?.name ?? 'Removed item',
         unitPrice: item?.price ?? 0,
-        available: item?.quantity ?? 0,
+        available: item
+          ? availableToSell(sellableFacts(db, item), suppliesOf(db, item.businessId))
+          : 0,
         active: item?.active ?? false,
       }
     })
@@ -398,32 +485,39 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
     return cleaned
   }
 
+  /** What a stock change applies to: an item's own stock or a shared supply. */
+  type StockTarget = { kind: 'item'; record: MockItem } | { kind: 'supply'; record: MockSupply }
+
   /**
-   * The one way stock changes: the item's quantity and a ledger entry, together.
+   * The one way stock changes: the quantity and a ledger entry, together.
    * The caller writes the data once everything has succeeded.
    */
   function moveStock(
     db: MockDb,
     business: MockBusiness,
     user: MockUser,
-    item: MockItem,
+    target: StockTarget,
     type: MovementType,
     delta: number,
     extra: Partial<MockStockMovement> = {},
   ): void {
     const at = now()
-    const before = item.quantity
-    item.quantity = before + delta
-    item.updatedAt = at.toISOString()
+    const record = target.record
+    const before = record.quantity
+    record.quantity = before + delta
+    record.updatedAt = at.toISOString()
     db.stockMovements.push({
       id: `move-${crypto.randomUUID()}`,
       businessId: business.id,
-      itemId: item.id,
-      itemName: item.name,
+      itemId: target.kind === 'item' ? record.id : null,
+      supplyId: target.kind === 'supply' ? record.id : null,
+      itemName: record.name,
+      sourceItemId: null,
+      sourceItemName: null,
       type,
       delta,
       quantityBefore: before,
-      quantityAfter: item.quantity,
+      quantityAfter: record.quantity,
       reason: null,
       note: null,
       orderId: null,
@@ -438,11 +532,38 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
     })
   }
 
+  /** Finds the item or supply a restock or adjustment names, in this business. */
+  function stockTarget(
+    db: MockDb,
+    business: MockBusiness,
+    line: { itemId?: string | undefined; supplyId?: string | undefined },
+  ): StockTarget {
+    if (Boolean(line.itemId) === Boolean(line.supplyId)) fail('validation')
+    if (line.itemId) {
+      const item = db.items.find(
+        (candidate) => candidate.id === line.itemId && candidate.businessId === business.id,
+      )
+      if (!item) fail('not_found')
+      if (!item.active) fail('item_archived')
+      if (!item.tracksOwnStock) fail('stock_not_counted')
+      return { kind: 'item', record: item }
+    }
+    const supply = db.supplies.find(
+      (candidate) => candidate.id === line.supplyId && candidate.businessId === business.id,
+    )
+    if (!supply) fail('not_found')
+    if (!supply.active) fail('item_archived')
+    return { kind: 'supply', record: supply }
+  }
+
   function toMovement(db: MockDb, move: MockStockMovement): StockMovement {
     return {
       id: move.id,
       itemId: move.itemId,
+      supplyId: move.supplyId,
       itemName: move.itemName,
+      sourceItemId: move.sourceItemId,
+      sourceItemName: move.sourceItemName,
       type: move.type,
       delta: move.delta,
       quantityBefore: move.quantityBefore,
@@ -705,7 +826,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           .filter(
             (item) => item.businessId === business.id && (item.active || user.role === 'owner'),
           )
-          .map(toItem)
+          .map(toItem(db))
           .sort((a, b) => a.name.localeCompare(b.name))
       },
 
@@ -725,6 +846,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         const name = cleanText(input.name)
         const category = optional(input.category, STOCK_LIMITS.categoryMax)
         const unit = optional(input.unit, STOCK_LIMITS.unitMax)
+        const uses = Array.isArray(input.supplies) ? input.supplies : []
         if (
           !input.itemId ||
           !name ||
@@ -733,14 +855,27 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           (input.costPrice !== null && !isWholeIn(input.costPrice, 0, STOCK_LIMITS.maxPrice)) ||
           (input.lowStockLevel !== null &&
             !isWholeIn(input.lowStockLevel, 0, STOCK_LIMITS.maxLowStockLevel)) ||
-          !isWholeIn(input.openingQuantity, 0, STOCK_LIMITS.maxQuantity)
+          !isWholeIn(input.openingQuantity, 0, STOCK_LIMITS.maxQuantity) ||
+          typeof input.tracksOwnStock !== 'boolean' ||
+          !validSupplyUses(uses)
         ) {
           fail('validation')
+        }
+        // Every supply must belong to this business and be in use (not archived).
+        for (const use of uses) {
+          const supply = db.supplies.find(
+            (candidate) => candidate.id === use.supplyId && candidate.businessId === business.id,
+          )
+          if (!supply) fail('not_found')
+          if (!supply.active) fail('item_archived')
         }
 
         const sameId = db.items.find((item) => item.id === input.itemId)
         // An id that belongs to another business is refused, never edited.
         if (sameId && sameId.businessId !== business.id) fail('conflict')
+        // A new item's opening count only makes sense if it counts its own stock.
+        // (When editing, the opening count is ignored anyway.)
+        if (!sameId && !input.tracksOwnStock && input.openingQuantity > 0) fail('validation')
         const clash = db.items.find(
           (item) =>
             item.businessId === business.id &&
@@ -752,12 +887,34 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         const at = now().toISOString()
         let item = sameId
         if (item) {
+          // A change to how stock is counted applies to new sales only, and is recorded.
+          const before = { tracksOwnStock: item.tracksOwnStock, supplies: usesOf(db, item.id) }
+          const after = {
+            tracksOwnStock: input.tracksOwnStock,
+            supplies: uses.map((use) => ({
+              supplyId: use.supplyId,
+              unitsPerSale: use.unitsPerSale,
+            })),
+          }
+          if (!sameStockMode(before, after)) {
+            db.stockModeChanges.push({
+              id: `mode-${crypto.randomUUID()}`,
+              businessId: business.id,
+              itemId: item.id,
+              changedBy: user.id,
+              changedByName: user.displayName,
+              changedAt: at,
+              before,
+              after,
+            })
+          }
           // Editing never changes quantity: that is what restocks and adjustments are for.
           Object.assign(item, {
             name,
             category,
             unit,
             price: input.price,
+            tracksOwnStock: input.tracksOwnStock,
             lowStockLevel: input.lowStockLevel ?? item.lowStockLevel,
             updatedAt: at,
           })
@@ -769,6 +926,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
             category,
             unit,
             price: input.price,
+            tracksOwnStock: input.tracksOwnStock,
             quantity: 0,
             lowStockLevel: input.lowStockLevel ?? business.defaultLowStockLevel,
             active: true,
@@ -776,21 +934,35 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
             updatedAt: at,
           }
           db.items.push(item)
+          // The opening count is added; nothing is ever deducted from supplies here.
           if (input.openingQuantity > 0) {
-            moveStock(db, business, user, item, 'opening', input.openingQuantity)
+            moveStock(
+              db,
+              business,
+              user,
+              { kind: 'item', record: item },
+              'opening',
+              input.openingQuantity,
+            )
           }
         }
 
-        db.itemCosts = db.itemCosts.filter((cost) => cost.itemId !== item.id)
-        if (input.costPrice !== null) {
-          db.itemCosts.push({
-            itemId: item.id,
+        const itemId = item.id
+        db.itemSupplies = [
+          ...db.itemSupplies.filter((use) => use.itemId !== itemId),
+          ...uses.map((use) => ({
+            itemId,
+            supplyId: use.supplyId,
             businessId: business.id,
-            costPrice: input.costPrice,
-          })
+            unitsPerSale: use.unitsPerSale,
+          })),
+        ]
+        db.itemCosts = db.itemCosts.filter((cost) => cost.itemId !== itemId)
+        if (input.costPrice !== null) {
+          db.itemCosts.push({ itemId, businessId: business.id, costPrice: input.costPrice })
         }
         store.write(db)
-        return toItem(item)
+        return toItem(db)(item)
       },
 
       async archive(itemId) {
@@ -814,6 +986,150 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         if (!item) fail('not_found')
         item.active = true
         item.updatedAt = now().toISOString()
+        store.write(db)
+      },
+
+      async stockModeChanges(itemId) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        return db.stockModeChanges
+          .filter((change) => change.businessId === business.id && change.itemId === itemId)
+          .sort((a, b) => b.changedAt.localeCompare(a.changedAt))
+          .map((change) => ({
+            id: change.id,
+            changedAt: change.changedAt,
+            changedByName: change.changedByName,
+            before: {
+              tracksOwnStock: change.before.tracksOwnStock,
+              supplies: describeUses(db, change.before.supplies),
+            },
+            after: {
+              tracksOwnStock: change.after.tracksOwnStock,
+              supplies: describeUses(db, change.after.supplies),
+            },
+          }))
+      },
+    },
+
+    supplies: {
+      async list() {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner', 'staff'])
+        return db.supplies
+          .filter(
+            (supply) =>
+              supply.businessId === business.id && (supply.active || user.role === 'owner'),
+          )
+          .map(toSupply(db))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      },
+
+      async costs() {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        return Object.fromEntries(
+          db.supplyCosts
+            .filter((cost) => cost.businessId === business.id)
+            .map((cost) => [cost.supplyId, cost.costPrice]),
+        )
+      },
+
+      async upsert(input) {
+        const db = await begin()
+        const { user, business } = requireMember(db, ['owner'])
+        const name = cleanText(input.name)
+        const unit = optional(input.unit, SUPPLY_LIMITS.unitMax)
+        if (
+          !input.supplyId ||
+          !name ||
+          name.length > SUPPLY_LIMITS.nameMax ||
+          (input.costPrice !== null && !isWholeIn(input.costPrice, 0, STOCK_LIMITS.maxPrice)) ||
+          (input.lowStockLevel !== null &&
+            !isWholeIn(input.lowStockLevel, 0, STOCK_LIMITS.maxLowStockLevel)) ||
+          !isWholeIn(input.openingQuantity, 0, STOCK_LIMITS.maxQuantity)
+        ) {
+          fail('validation')
+        }
+        const sameId = db.supplies.find((supply) => supply.id === input.supplyId)
+        if (sameId && sameId.businessId !== business.id) fail('conflict')
+        const clash = db.supplies.find(
+          (supply) =>
+            supply.businessId === business.id &&
+            supply.id !== input.supplyId &&
+            supply.name.toLowerCase() === name.toLowerCase(),
+        )
+        if (clash) fail('supply_name_taken')
+
+        const at = now().toISOString()
+        let supply = sameId
+        if (supply) {
+          Object.assign(supply, {
+            name,
+            unit,
+            lowStockLevel: input.lowStockLevel ?? supply.lowStockLevel,
+            updatedAt: at,
+          })
+        } else {
+          supply = {
+            id: input.supplyId,
+            businessId: business.id,
+            name,
+            unit,
+            quantity: 0,
+            lowStockLevel: input.lowStockLevel ?? business.defaultLowStockLevel,
+            active: true,
+            createdAt: at,
+            updatedAt: at,
+          }
+          db.supplies.push(supply)
+          if (input.openingQuantity > 0) {
+            moveStock(
+              db,
+              business,
+              user,
+              { kind: 'supply', record: supply },
+              'opening',
+              input.openingQuantity,
+            )
+          }
+        }
+        const supplyId = supply.id
+        db.supplyCosts = db.supplyCosts.filter((cost) => cost.supplyId !== supplyId)
+        if (input.costPrice !== null) {
+          db.supplyCosts.push({ supplyId, businessId: business.id, costPrice: input.costPrice })
+        }
+        store.write(db)
+        return toSupply(db)(supply)
+      },
+
+      async archive(supplyId) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const supply = db.supplies.find(
+          (candidate) => candidate.id === supplyId && candidate.businessId === business.id,
+        )
+        if (!supply) fail('not_found')
+        // Archiving a supply that items on sale still use would quietly stop them selling.
+        const inUse = db.itemSupplies.some(
+          (use) =>
+            use.supplyId === supplyId &&
+            db.items.some((item) => item.id === use.itemId && item.active),
+        )
+        if (inUse) fail('supply_in_use')
+        supply.active = false
+        supply.updatedAt = now().toISOString()
+        store.write(db)
+      },
+
+      async restore(supplyId) {
+        const db = await begin()
+        const { business } = requireMember(db, ['owner'])
+        const supply = db.supplies.find(
+          (candidate) => candidate.id === supplyId && candidate.businessId === business.id,
+        )
+        if (!supply) fail('not_found')
+        supply.active = true
+        supply.updatedAt = now().toISOString()
         store.write(db)
       },
     },
@@ -846,14 +1162,8 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           fail('validation')
         }
 
-        const items = input.lines.map((line) => {
-          const item = db.items.find(
-            (candidate) => candidate.id === line.itemId && candidate.businessId === business.id,
-          )
-          if (!item) fail('not_found')
-          if (!item.active) fail('item_archived')
-          return item
-        })
+        // Each line is an item that counts its own stock, or a shared supply.
+        const targets = input.lines.map((line) => stockTarget(db, business, line))
 
         const restockId = `restock-${crypto.randomUUID()}`
         db.restocks.push({
@@ -868,7 +1178,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           createdAt: now().toISOString(),
         })
         input.lines.forEach((line, index) => {
-          moveStock(db, business, user, items[index]!, 'restock', line.quantity, {
+          moveStock(db, business, user, targets[index]!, 'restock', line.quantity, {
             restockId,
             supplier,
             unitCost: line.unitCost,
@@ -891,20 +1201,18 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         ) {
           fail('validation')
         }
-        const item = db.items.find(
-          (candidate) => candidate.id === input.itemId && candidate.businessId === business.id,
-        )
-        if (!item) fail('not_found')
+        const target = stockTarget(db, business, input)
+        const current = target.record.quantity
         // The count was made against a different number: someone sold or restocked meanwhile.
-        if (item.quantity !== input.expectedQuantity) fail('conflict', { quantity: item.quantity })
-        if (input.countedQuantity === item.quantity) fail('validation')
+        if (current !== input.expectedQuantity) fail('conflict', { quantity: current })
+        if (input.countedQuantity === current) fail('validation')
 
-        moveStock(db, business, user, item, 'adjustment', input.countedQuantity - item.quantity, {
+        moveStock(db, business, user, target, 'adjustment', input.countedQuantity - current, {
           reason: input.reason,
           note,
         })
         store.write(db)
-        return toItem(item)
+        return { quantity: target.record.quantity }
       },
 
       async movements(filter) {
@@ -915,6 +1223,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
             (move) =>
               move.businessId === business.id &&
               (!filter.itemId || move.itemId === filter.itemId) &&
+              (!filter.supplyId || move.supplyId === filter.supplyId) &&
               (!filter.type || move.type === filter.type) &&
               (!filter.from || move.dateKey >= filter.from) &&
               (!filter.to || move.dateKey <= filter.to) &&
@@ -941,11 +1250,22 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
               (item) =>
                 item.businessId === business.id &&
                 item.active &&
+                item.tracksOwnStock &&
                 item.quantity <= item.lowStockLevel,
             )
             .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
             .slice(0, 10)
-            .map(toItem),
+            .map(toItem(db)),
+          lowSupplies: db.supplies
+            .filter(
+              (supply) =>
+                supply.businessId === business.id &&
+                supply.active &&
+                supply.quantity <= supply.lowStockLevel,
+            )
+            .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
+            .slice(0, 10)
+            .map(toSupply(db)),
         }
       },
 
@@ -963,6 +1283,18 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           range,
           db.items.filter((item) => item.businessId === business.id),
           costs,
+          {
+            supplies: db.supplies.filter((supply) => supply.businessId === business.id),
+            costs: Object.fromEntries(
+              db.supplyCosts
+                .filter((cost) => cost.businessId === business.id)
+                .map((cost) => [cost.supplyId, cost.costPrice]),
+            ),
+            sales: db.stockMovements.filter(
+              (move) =>
+                move.businessId === business.id && move.supplyId !== null && move.type === 'sale',
+            ) as SupplySaleFact[],
+          },
         )
       },
 
@@ -1049,13 +1381,21 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         const note = optional(input.note, ORDER_LIMITS.noteMax)
 
         // Names and prices come from the item list now, never from the cart.
-        const itemsById = new Map(
+        const records = new Map(
           db.items.filter((item) => item.businessId === business.id).map((item) => [item.id, item]),
         )
-        const check = checkOrder(lines, itemsById)
+        const itemsById = new Map(
+          [...records.values()].map((item) => [item.id, sellableFacts(db, item)]),
+        )
+        const supplies = suppliesOf(db, business.id)
+        // Own stock and shared supplies are checked together, every line's needs added up.
+        const check = checkOrder(lines, itemsById, supplies)
         if (!check.ok) {
           if (check.reason === 'item_unavailable') fail('item_unavailable', { names: check.names })
-          fail('insufficient_stock', { problems: check.problems })
+          fail('insufficient_stock', {
+            problems: check.problems,
+            supplyProblems: check.supplyProblems,
+          })
         }
 
         const stamp = now()
@@ -1088,32 +1428,31 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           lines: check.lines,
         }
 
-        // Stock goes down, and each line is written to the ledger.
+        // Own stock goes down for items that count it, each line in the ledger.
         for (const line of check.lines) {
-          const item = itemsById.get(line.itemId)!
-          const before = item.quantity
-          item.quantity = before - line.quantity
-          item.updatedAt = at
-          db.stockMovements.push({
-            id: `move-${crypto.randomUUID()}`,
-            businessId: business.id,
-            itemId: item.id,
-            itemName: item.name,
-            type: 'sale',
-            delta: -line.quantity,
-            quantityBefore: before,
-            quantityAfter: item.quantity,
-            reason: null,
-            note: null,
+          const item = records.get(line.itemId)!
+          if (!item.tracksOwnStock) continue
+          moveStock(db, business, user, { kind: 'item', record: item }, 'sale', -line.quantity, {
             orderId: order.id,
-            restockId: null,
-            supplier: null,
-            unitCost: null,
-            createdBy: user.id,
-            createdByName: user.displayName,
-            dateKey: day,
-            createdAt: at,
           })
+        }
+        // Every supply deduction is its own ledger entry, linked to the order and the item.
+        for (const deduction of check.supplyDeductions) {
+          const supply = supplies.get(deduction.supplyId)!
+          const item = records.get(deduction.itemId)!
+          moveStock(
+            db,
+            business,
+            user,
+            { kind: 'supply', record: supply },
+            'sale',
+            -deduction.quantity,
+            {
+              orderId: order.id,
+              sourceItemId: item.id,
+              sourceItemName: item.name,
+            },
+          )
         }
 
         // A confirmed hold is removed in the same step.
@@ -1200,11 +1539,27 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         if (!why || why.length > STOCK_LIMITS.voidReasonMax) fail('validation')
         if (order.status !== 'completed') fail('conflict')
 
-        // Stock goes back, with a ledger entry per line. The order is kept, marked voided.
-        for (const line of order.lines) {
-          const item = db.items.find((candidate) => candidate.id === line.itemId)
-          if (item)
-            moveStock(db, business, user, item, 'void', line.quantity, { orderId: order.id })
+        // Stock goes back by reversing this order's own sale entries, items and supplies
+        // alike, so a later change to what an item uses never corrupts an old order.
+        const sales = db.stockMovements.filter(
+          (move) => move.orderId === order.id && move.type === 'sale',
+        )
+        for (const sale of sales) {
+          const target: StockTarget | null = sale.itemId
+            ? (() => {
+                const item = db.items.find((candidate) => candidate.id === sale.itemId)
+                return item ? { kind: 'item' as const, record: item } : null
+              })()
+            : (() => {
+                const supply = db.supplies.find((candidate) => candidate.id === sale.supplyId)
+                return supply ? { kind: 'supply' as const, record: supply } : null
+              })()
+          if (!target) continue
+          moveStock(db, business, user, target, 'void', -sale.delta, {
+            orderId: order.id,
+            sourceItemId: sale.sourceItemId,
+            sourceItemName: sale.sourceItemName,
+          })
         }
         Object.assign(order, {
           status: 'voided',

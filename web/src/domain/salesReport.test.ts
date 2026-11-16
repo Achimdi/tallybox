@@ -74,6 +74,8 @@ describe('sales report', () => {
       atPrice: 10000,
       itemsWithCost: 1,
       itemsWithoutCost: 1,
+      suppliesAtCost: 0,
+      suppliesWithoutCost: 0,
     })
     expect(buildSalesReport([], range, catalogue, {}).stockValue).toBeNull()
   })

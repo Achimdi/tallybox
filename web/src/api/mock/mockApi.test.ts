@@ -4,6 +4,7 @@ import { createTestApi, DEMO } from '@/test/mockApi'
 import { describeAccountsContract } from '../contract/accounts.contract'
 import { describeOrdersContract } from '../contract/orders.contract'
 import { describeOwnerContract } from '../contract/owner.contract'
+import { describeSuppliesContract } from '../contract/supplies.contract'
 import { createMockApi } from './mockApi'
 import { memoryStorage, STORAGE_KEY, type MockDb } from './store'
 
@@ -32,9 +33,9 @@ describe('mock data layer: the demo itself', () => {
     const signIn = (email: string) =>
       api.auth.signIn({ portal: 'owner', email, password: DEMO.password })
 
-    expect(await signIn('greenleaf@demo.tallybox.test')).toMatchObject({
+    expect(await signIn('harbour@demo.tallybox.test')).toMatchObject({
       kind: 'blocked',
-      notice: { reason: 'suspended', businessName: 'Green Leaf Restaurant' },
+      notice: { reason: 'suspended', businessName: 'Harbour Bakery' },
     })
     expect(await signIn('dailyneeds@demo.tallybox.test')).toMatchObject({
       kind: 'blocked',
@@ -57,7 +58,8 @@ describe('mock data layer: the demo itself', () => {
       expect.arrayContaining([
         ['Sunrise Pharmacy', 'active', 'ending_soon'],
         ['Corner Mart', 'active', 'ok'],
-        ['Green Leaf Restaurant', 'suspended', 'ok'],
+        ['Green Leaf Restaurant', 'active', 'ok'],
+        ['Harbour Bakery', 'suspended', 'ok'],
         ['Daily Needs Supermarket', 'active', 'ended'],
       ]),
     )
@@ -178,6 +180,17 @@ describeOwnerContract('mock', async () => {
   })
 })
 
+describeSuppliesContract('mock', async () => {
+  const test = createTestApi()
+  return Promise.resolve({
+    api: test.api,
+    otherBrowser: test.otherBrowser,
+    owner: DEMO.owner,
+    staffA: DEMO.staff,
+    staffB: { ...DEMO.staff, username: 'bola' },
+  })
+})
+
 describe('mock data layer: the demo shop and its stock ledger', () => {
   /** Reads the stored demo data, the way a database test would read tables. */
   function stored(test: ReturnType<typeof createTestApi>): MockDb {
@@ -196,7 +209,60 @@ describe('mock data layer: the demo shop and its stock ledger', () => {
         expect(move.quantityAfter, item.name).toBeGreaterThanOrEqual(0)
       }
     }
+    // Shared supplies follow the same rule.
+    for (const supply of db.supplies) {
+      const moves = db.stockMovements.filter((move) => move.supplyId === supply.id)
+      expect(
+        moves.reduce((sum, move) => sum + move.delta, 0),
+        supply.name,
+      ).toBe(supply.quantity)
+      for (const move of moves) {
+        expect(move.quantityAfter, supply.name).toBe(move.quantityBefore + move.delta)
+        expect(move.quantityAfter, supply.name).toBeGreaterThanOrEqual(0)
+      }
+    }
+    // Every entry belongs to exactly one of the two.
+    for (const move of db.stockMovements) {
+      expect(Boolean(move.itemId) !== Boolean(move.supplyId), move.id).toBe(true)
+    }
   }
+
+  it('seeds a drinks business whose drinks share 1,000 bottles and caps', async () => {
+    const test = createTestApi()
+    await test.api.auth.signIn({
+      portal: 'owner',
+      email: 'greenleaf@demo.tallybox.test',
+      password: DEMO.password,
+    })
+    const supplies = await test.api.supplies.list()
+    expect(supplies.map((supply) => supply.name)).toEqual(['300 ml bottle', 'Bottle cap'])
+    const bottle = supplies[0]!
+    expect(bottle.usedBy.map((use) => use.name)).toEqual([
+      'Apple juice 300ml',
+      'Coke 300ml',
+      'Fanta 300ml',
+      'Zobo 300ml',
+    ])
+    const opening = await test.api.stock.movements({ supplyId: bottle.id, type: 'opening' })
+    expect(opening.rows[0]?.delta).toBe(1000)
+
+    const items = await test.api.items.list()
+    const named = (name: string) => items.find((item) => item.name === name)!
+    // Supplies only, both, and neither.
+    expect(named('Coke 300ml')).toMatchObject({ tracksOwnStock: false, available: bottle.quantity })
+    expect(named('Apple juice 300ml')).toMatchObject({ tracksOwnStock: true, quantity: 790 })
+    expect(named('Jollof rice')).toMatchObject({ tracksOwnStock: false, available: null })
+    expectLedgerMatchesStock(stored(test))
+
+    // Staff of that business see what can be sold, and it is a separate business from Sunrise.
+    const staff = test.otherBrowser()
+    await staff.auth.signIn({ ...DEMO.staff, businessCode: 'green-leaf', username: 'tobi' })
+    expect((await staff.items.list()).map((item) => item.name)).toContain('Zobo 300ml')
+    const sunrise = test.otherBrowser()
+    await sunrise.auth.signIn(DEMO.owner)
+    expect(await sunrise.supplies.list()).toEqual([])
+    expect((await sunrise.items.list()).some((item) => item.name === 'Zobo 300ml')).toBe(false)
+  })
 
   it('seeds a realistic shop', async () => {
     const test = createTestApi()

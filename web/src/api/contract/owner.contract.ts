@@ -49,6 +49,8 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
       costPrice: 30000,
       lowStockLevel: 5,
       openingQuantity: 20,
+      tracksOwnStock: true,
+      supplies: [],
       ...overrides,
     })
 

@@ -22,6 +22,7 @@ import type { CartLine, PaymentMethod } from '@/domain/orders'
 import type { DaySummary, ItemSales } from '@/domain/reports'
 import type { ReportRange, SalesReport } from '@/domain/salesReport'
 import type { AdjustReason, MovementType, RestockLine } from '@/domain/stock'
+import type { SupplyUse } from '@/domain/supplies'
 
 // ---------------------------------------------------------------------------
 // Sessions
@@ -124,11 +125,28 @@ export interface Item {
   unit: string | null
   /** Selling price in minor units. */
   price: number
-  /** Whole units on hand. */
+  /** False when the item doesn't count its own stock (it may use shared supplies, or nothing). */
+  tracksOwnStock: boolean
+  /** Own stock on hand. Only meaningful when tracksOwnStock is true. */
   quantity: number
+  /** Shared supplies each unit sold uses, for example 1 bottle and 1 cap. */
+  supplies: ItemSupplyUse[]
+  /**
+   * How many can be sold now: the lowest of own stock and each supply ÷ units
+   * per sale. Null when nothing limits it (the item counts nothing).
+   */
+  available: number | null
   lowStockLevel: number
   /** False means archived: not sold, hidden from staff. */
   active: boolean
+}
+
+export interface ItemSupplyUse {
+  supplyId: string
+  /** The supply's name, for showing. */
+  name: string
+  unit: string | null
+  unitsPerSale: number
 }
 
 export interface ItemInput {
@@ -145,6 +163,19 @@ export interface ItemInput {
   lowStockLevel: number | null
   /** New items only; later changes go through restocks and adjustments. */
   openingQuantity: number
+  /** Count this item's own stock. On by default. */
+  tracksOwnStock: boolean
+  /** Shared supplies used per unit sold. Empty means none. Changes apply to new sales only. */
+  supplies: SupplyUse[]
+}
+
+/** A change to how an item counts stock, kept as a permanent record. */
+export interface StockModeChange {
+  id: string
+  changedAt: string
+  changedByName: string
+  before: { tracksOwnStock: boolean; supplies: ItemSupplyUse[] }
+  after: { tracksOwnStock: boolean; supplies: ItemSupplyUse[] }
 }
 
 export interface ItemsApi {
@@ -157,6 +188,49 @@ export interface ItemsApi {
   /** Owner only. Hides an item from selling and from staff. Its history stays. */
   archive(itemId: string): Promise<void>
   restore(itemId: string): Promise<void>
+  /** Owner only. Every change to how the item counts stock, newest first. */
+  stockModeChanges(itemId: string): Promise<StockModeChange[]>
+}
+
+// ---------------------------------------------------------------------------
+// Shared supplies: stock counted by packaging or materials (bottles, caps…)
+// ---------------------------------------------------------------------------
+
+export interface Supply {
+  id: string
+  name: string
+  unit: string | null
+  quantity: number
+  lowStockLevel: number
+  /** False means archived. */
+  active: boolean
+  /** Items on sale that use this supply. */
+  usedBy: { itemId: string; name: string; unitsPerSale: number }[]
+}
+
+export interface SupplyInput {
+  /** Chosen by the app for a new supply, so saving twice never makes two. */
+  supplyId: string
+  name: string
+  unit: string
+  /** Owner-only. Null removes it. */
+  costPrice: number | null
+  /** Null keeps the current level (or uses the business default for a new supply). */
+  lowStockLevel: number | null
+  /** New supplies only. */
+  openingQuantity: number
+}
+
+export interface SuppliesApi {
+  /** Staff see supplies on sale (to know what can be sold), never costs. Owners also see archived ones. */
+  list(): Promise<Supply[]>
+  /** Owner only: cost prices by supply id. */
+  costs(): Promise<Record<string, number>>
+  /** Owner only. */
+  upsert(input: SupplyInput): Promise<Supply>
+  /** Owner only. Refused with supply_in_use while an item on sale uses it. */
+  archive(supplyId: string): Promise<void>
+  restore(supplyId: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +239,14 @@ export interface ItemsApi {
 
 export interface StockMovement {
   id: string
-  itemId: string
+  /** Exactly one of itemId and supplyId is set. */
+  itemId: string | null
+  supplyId: string | null
+  /** The item's or the supply's name. */
   itemName: string
+  /** For a supply used by a sale (or returned by a void): the item that used it. */
+  sourceItemId: string | null
+  sourceItemName: string | null
   type: MovementType
   /** Positive adds stock, negative removes it. */
   delta: number
@@ -187,6 +267,7 @@ export interface StockMovement {
 
 export interface MovementFilter {
   itemId?: string
+  supplyId?: string
   type?: MovementType
   /** Business days, "YYYY-MM-DD", inclusive. */
   from?: string
@@ -212,8 +293,10 @@ export interface RestockInput {
   lines: RestockLine[]
 }
 
+/** Adjusts an item's own stock or a supply: exactly one of itemId and supplyId. */
 export interface AdjustInput {
-  itemId: string
+  itemId?: string
+  supplyId?: string
   countedQuantity: number
   /** The quantity shown when counting started. Refused with conflict if stock changed since. */
   expectedQuantity: number
@@ -224,7 +307,8 @@ export interface AdjustInput {
 
 export interface StockApi {
   restock(input: RestockInput): Promise<{ restockId: string }>
-  adjust(input: AdjustInput): Promise<Item>
+  /** Returns the new quantity. */
+  adjust(input: AdjustInput): Promise<{ quantity: number }>
   /** Newest first. */
   movements(filter: MovementFilter): Promise<Page<StockMovement>>
 }
@@ -237,8 +321,10 @@ export interface Dashboard {
   today: DaySummary
   yesterday: DaySummary
   topItemsToday: ItemSales[]
-  /** Items on sale at or below their low-stock level, emptiest first. */
+  /** Items on sale that count their own stock, at or below their low-stock level, emptiest first. */
   lowStock: Item[]
+  /** Supplies at or below their low-stock level, emptiest first. */
+  lowSupplies: Supply[]
 }
 
 /** The most orders one CSV export returns. A longer range is cut short and says so. */
@@ -354,7 +440,8 @@ export interface OrdersApi {
   /**
    * Confirms an order: checks payment was confirmed and stock for every line,
    * takes names and prices from the item list, reduces stock. Throws
-   * payment_not_confirmed, insufficient_stock (details.problems) or
+   * payment_not_confirmed, insufficient_stock (details.problems for own stock,
+   * details.supplyProblems for shared supplies) or
    * item_unavailable (details.names).
    */
   create(input: CreateOrderInput): Promise<Order>
@@ -391,7 +478,8 @@ export interface HeldOrderLine {
   /** Current details of the item, for display. A hold stores only item and quantity. */
   name: string
   unitPrice: number
-  available: number
+  /** How many can be sold now. Null when nothing limits it. */
+  available: number | null
   active: boolean
 }
 
@@ -586,6 +674,7 @@ export interface TallyboxApi {
   orders: OrdersApi
   held: HeldOrdersApi
   stock: StockApi
+  supplies: SuppliesApi
   reports: ReportsApi
   business: BusinessApi
   admin: AdminApi
