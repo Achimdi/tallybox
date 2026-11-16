@@ -300,7 +300,7 @@ select throws_ok($$ select * from public.items $$, '42501', null, 'a visitor can
 select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a1');
 
 select is(
-  public.adjust_stock('c0000000-0000-0000-0000-000000000001', 70, 72, 'damaged', ' Two boxes crushed '),
+  public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 70, 72, 'damaged', ' Two boxes crushed '),
   70,
   'the owner sets stock to what was counted'
 );
@@ -311,34 +311,34 @@ select results_eq(
   'the difference is a permanent ledger entry with the reason'
 );
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', 65, 72, 'miscount', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 65, 72, 'miscount', null) $$,
   'P0001', 'conflict', 'a count made before the stock changed is refused'
 );
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', 70, 70, 'miscount', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 70, 70, 'miscount', null) $$,
   'P0001', 'validation', 'an adjustment must change something'
 );
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', 60, 70, 'other', '  ') $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 60, 70, 'other', '  ') $$,
   'P0001', 'validation', '"other" needs a note'
 );
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', 60, 70, 'gift', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 60, 70, 'gift', null) $$,
   'P0001', 'validation', 'only the listed reasons are allowed'
 );
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', -1, 70, 'miscount', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, -1, 70, 'miscount', null) $$,
   'P0001', 'validation', 'stock cannot be counted below zero'
 );
 select lives_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000002', 10, 12, 'lost_or_stolen', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000002', null, 10, 12, 'lost_or_stolen', null) $$,
   'an archived item can still be counted'
 );
 select lives_ok($$ select public.restore_item('c0000000-0000-0000-0000-000000000002') $$, 'the owner restores an archived item');
 
 select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a2');
 select throws_ok(
-  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', 1, 70, 'miscount', null) $$,
+  $$ select public.adjust_stock('c0000000-0000-0000-0000-000000000001', null, 1, 70, 'miscount', null) $$,
   'P0001', 'permission_denied', 'staff cannot adjust stock'
 );
 select is((select count(*)::int from public.items), 2, 'staff see the restored item again');

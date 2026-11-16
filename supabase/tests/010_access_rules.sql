@@ -94,7 +94,11 @@ select bag_eq(
     'archive_item',
     'restore_item',
     'record_restock',
-    'adjust_stock'
+    'adjust_stock',
+    -- Phase 2B: shared supplies
+    'upsert_supply',
+    'archive_supply',
+    'restore_supply'
   ],
   'signed-in users can run only the functions meant for them'
 );
