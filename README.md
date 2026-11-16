@@ -10,15 +10,15 @@ Online inventory and sales for small shops, pharmacies and restaurants. A websit
 
 ## Status and plan
 
-| Phase                               | What                                                                                                                      | Status                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                            |
-| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | Done, including shared supplies |
-| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Not started                     |
-| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                     |
-| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                     |
+| Phase                               | What                                                                                                                      | Status                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                     |
+| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | Done, including shared supplies                          |
+| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | 2A: backend ready, waiting for your Supabase dev project |
+| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                              |
+| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                              |
 
-Backend code written early (database migrations, Edge Functions, 198 database tests) is parked on the `backend-draft` branch for Phase 2.
+The backend (database migrations, eight Edge Functions, 247 database tests and 32 function tests) lives in `supabase/`. Run its tests with `npm run db:test:local` and `npm run functions:test`; neither needs Docker or an account.
 
 ## Run it
 
@@ -79,9 +79,9 @@ docs/                The brief, the UX map and supporting notes
 
 Phase 1 needs none. They are set up only when needed, one step at a time, and you never paste a password, token or key into a chat:
 
-- **GitHub** (already set up) for the code and CI. Push, then check the two CI jobs go green in the repo's **Actions** tab.
+- **GitHub** (already set up) for the code and CI. Push, then check the CI jobs go green in the repo's **Actions** tab.
 - **Cloudflare Pages**, optional in Phase 1, to share a clearly labelled DEMO link (steps below).
-- **Supabase and Cloudflare Turnstile**, only from Phase 2. Those steps are in the README on the `backend-draft` branch and will come back here in Phase 2.
+- **Supabase** (dev project now, prod in Phase 3): follow [docs/phase-2-setup.md](docs/phase-2-setup.md). It uses Cloudflare's Turnstile test keys on dev; a real Turnstile widget is set up before going live.
 
 ### Cloudflare Pages (optional demo link)
 
