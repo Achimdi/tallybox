@@ -68,7 +68,7 @@ export function PhonePreview({ className }: { className?: string }) {
   )
 }
 
-/** A floating card: the order is confirmed and the receipt is ready. */
+/** A floating card: the order is confirmed and stock is updated. */
 export function ConfirmedCard({ className }: { className?: string }) {
   return (
     <div
@@ -83,7 +83,7 @@ export function ConfirmedCard({ className }: { className?: string }) {
       </span>
       <span className="flex flex-col">
         <span className="text-label font-bold text-ink">Order #0048 confirmed</span>
-        <span className="text-caption text-ink-muted">Receipt sent on WhatsApp</span>
+        <span className="text-caption text-ink-muted">Stock updated automatically</span>
       </span>
     </div>
   )
@@ -211,52 +211,5 @@ function Bottle() {
       />
       <rect x="7" y="20" width="10" height="8" rx="1" className="fill-surface-raised opacity-80" />
     </svg>
-  )
-}
-
-/** A receipt, as customers receive it. */
-export function ReceiptPreview({ className }: { className?: string }) {
-  const lines = [
-    { name: 'Paracetamol 500mg', detail: '2 × ₦450', total: '₦900' },
-    { name: 'Malt drink 33cl', detail: '3 × ₦600', total: '₦1,800' },
-  ]
-  return (
-    <div
-      role="img"
-      aria-label="A Tallybox receipt with the business name, order number, items, total and payment method."
-      className={cn(
-        'w-64 rounded-card border border-line bg-white p-5 text-grey-900 shadow-raised',
-        className,
-      )}
-    >
-      <div aria-hidden="true" className="flex flex-col gap-3">
-        <div className="text-center">
-          <p className="text-label font-bold">Sunrise Pharmacy</p>
-          <p className="text-caption text-grey-600">12 Example Street, Lagos</p>
-        </div>
-        <div className="border-t border-dashed border-grey-300" />
-        <div className="flex justify-between text-caption">
-          <span className="font-semibold">Receipt</span>
-          <span className="font-semibold">#0048</span>
-        </div>
-        {lines.map((line) => (
-          <div key={line.name} className="flex justify-between gap-2 text-caption">
-            <span className="flex flex-col">
-              <span>{line.name}</span>
-              <span className="text-grey-600">{line.detail}</span>
-            </span>
-            <span className="font-semibold">{line.total}</span>
-          </div>
-        ))}
-        <div className="border-t border-dashed border-grey-300" />
-        <div className="flex justify-between text-label font-bold">
-          <span>Total</span>
-          <span>₦2,700</span>
-        </div>
-        <p className="text-center text-[0.65rem] text-grey-600">
-          Paid by bank transfer · Powered by Tallybox
-        </p>
-      </div>
-    </div>
   )
 }

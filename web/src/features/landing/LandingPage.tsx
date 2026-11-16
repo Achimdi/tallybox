@@ -11,7 +11,7 @@ import {
   Mail,
   PackageOpen,
   Pill,
-  Receipt,
+  CirclePause,
   Shirt,
   ShoppingBasket,
   Smartphone,
@@ -35,7 +35,6 @@ import {
   ConfirmedCard,
   LowStockCard,
   PhonePreview,
-  ReceiptPreview,
   SalesCard,
   SuppliesPreview,
 } from './ProductPreview'
@@ -54,12 +53,12 @@ const FEATURES: readonly { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: BadgeCheck,
     title: 'Only paid orders count',
-    text: 'An order is confirmed only after your staff tick “Payment received”. Waiting for a transfer? Hold the order.',
+    text: 'An order is confirmed only after your staff tick “Payment received”, so your totals match the money.',
   },
   {
-    icon: Receipt,
-    title: 'Receipts your way',
-    text: 'Share as a picture or PDF, send on WhatsApp, or print on A4 or a small receipt printer.',
+    icon: CirclePause,
+    title: 'Hold and come back',
+    text: "Waiting for a customer's transfer? Hold the order and serve the next person. No stock is taken until it is paid.",
   },
   {
     icon: ChartColumnIncreasing,
@@ -212,7 +211,7 @@ export default function LandingPage() {
               </h1>
               <p className="max-w-xl text-body-lg text-ink-muted">
                 Tallybox records every sale, takes it off your stock automatically, and gives you
-                clean receipts and daily totals. On the phones you already have.
+                clear daily totals. On the phones you already have.
               </p>
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                 <ButtonLink
@@ -230,14 +229,16 @@ export default function LandingPage() {
                 </a>
               </div>
               <ul className="flex flex-wrap gap-x-5 gap-y-2 text-label text-ink-muted">
-                {['No app store needed', 'Staff accounts in minutes', 'Receipts on WhatsApp'].map(
-                  (point) => (
-                    <li key={point} className="flex items-center gap-1.5">
-                      <BadgeCheck aria-hidden="true" className="size-4 text-primary" />
-                      {point}
-                    </li>
-                  ),
-                )}
+                {[
+                  'No app store needed',
+                  'Staff accounts in minutes',
+                  'Daily totals at a glance',
+                ].map((point) => (
+                  <li key={point} className="flex items-center gap-1.5">
+                    <BadgeCheck aria-hidden="true" className="size-4 text-primary" />
+                    {point}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -321,17 +322,6 @@ export default function LandingPage() {
                 'Voids put supplies back',
               ]}
               visual={<SuppliesPreview className="w-full max-w-sm" />}
-            />
-            <Spotlight
-              eyebrow="Receipts"
-              title="A proper receipt for every paid order"
-              text="With your logo, address and message. Share it to WhatsApp, save it as a PDF or picture, or print it. Voided orders are clearly marked VOID."
-              points={[
-                'WhatsApp in one tap',
-                'A4, 80 mm and 58 mm printing',
-                'Prices fixed at the time of sale',
-              ]}
-              visual={<ReceiptPreview className="rotate-1" />}
             />
           </div>
         </section>
