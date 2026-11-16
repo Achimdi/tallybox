@@ -228,7 +228,7 @@ describe('suspended and turned-off accounts', () => {
       blocked: { reason: 'suspended', businessName: 'Test Shop', accessEndedAt: null },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Back to start' }))
-    expect(await screen.findByRole('link', { name: 'Owner login' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Owner sign in' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 })

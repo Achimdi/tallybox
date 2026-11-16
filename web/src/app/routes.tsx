@@ -1,6 +1,5 @@
 import { lazy } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
-import { WelcomePage } from '@/features/auth/WelcomePage'
 import { PublicOnly, RequireRole } from './guards'
 import { PortalLayout } from './layouts/PortalLayout'
 import { PublicLayout } from './layouts/PublicLayout'
@@ -17,6 +16,7 @@ import { RouteErrorPage } from './pages/RouteErrorPage'
  */
 
 // Public
+const LandingPage = lazy(() => import('@/features/landing/LandingPage'))
 const OwnerLoginPage = lazy(() => import('@/features/auth/OwnerLoginPage'))
 const StaffLoginPage = lazy(() => import('@/features/auth/StaffLoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
@@ -76,10 +76,11 @@ export const routes: RouteObject[] = [
       {
         element: <PublicOnly />,
         children: [
+          // The website's front page: full width, with its own header and footer.
+          { index: true, Component: LandingPage },
           {
             element: <PublicLayout />,
             children: [
-              { index: true, element: <WelcomePage /> },
               { path: 'login/owner', Component: OwnerLoginPage },
               { path: 'login/staff', Component: StaffLoginPage },
               { path: 'register', Component: RegisterPage },

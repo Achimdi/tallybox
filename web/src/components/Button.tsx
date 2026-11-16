@@ -46,6 +46,8 @@ export interface ButtonLinkProps extends LinkProps {
   variant?: ButtonVariant
   size?: ButtonSize
   leadingIcon?: ReactNode
+  /** After the label, for example an arrow on "Get started". */
+  trailingIcon?: ReactNode
   fullWidth?: boolean
 }
 
@@ -54,6 +56,7 @@ export function ButtonLink({
   variant = 'primary',
   size = 'md',
   leadingIcon,
+  trailingIcon,
   fullWidth = false,
   className,
   children,
@@ -73,6 +76,7 @@ export function ButtonLink({
     >
       {leadingIcon}
       <span>{children}</span>
+      {trailingIcon}
     </Link>
   )
 }
