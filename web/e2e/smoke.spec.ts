@@ -5,19 +5,40 @@ import { expect, test } from '@playwright/test'
  * (register, add item, place order, void order) is added as those phases land.
  */
 
-test('welcome page offers the three ways in', async ({ page }) => {
+test('the front page offers every way in', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveTitle('Tallybox')
-  await expect(page.getByRole('heading', { name: 'Tallybox' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /Know your stock/ })).toBeVisible()
+  await expect(
+    page
+      .getByRole('main')
+      .getByRole('link', { name: /^Get started/ })
+      .first(),
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: 'Register your business' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Owner login' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Staff login' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Owner sign in' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Staff sign in' })).toBeVisible()
+})
+
+test('the top bar signs in an owner or staff member', async ({ page, isMobile }) => {
+  await page.goto('/')
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Open menu' }).click()
+    await page.getByRole('dialog').getByRole('link', { name: 'Staff' }).click()
+  } else {
+    await page.getByRole('banner').getByRole('button', { name: 'Sign in' }).click()
+    await page.getByRole('menuitem', { name: /Staff/ }).click()
+  }
+  await expect(page).toHaveURL('/login/staff')
 })
 
 test('the page is styled with the brand tokens', async ({ page }) => {
   // Catches a build whose stylesheet is missing its utility classes.
   await page.goto('/')
-  const register = page.getByRole('link', { name: 'Register your business' })
+  const register = page
+    .getByRole('main')
+    .getByRole('link', { name: /^Get started/ })
+    .first()
   await expect(register).toHaveCSS('background-color', 'rgb(14, 124, 123)')
   await expect(register).toHaveCSS('color', 'rgb(255, 255, 255)')
   const box = await register.boundingBox()
@@ -28,7 +49,7 @@ test('the page is styled with the brand tokens', async ({ page }) => {
 test('guarded screens send signed-out visitors to the welcome page', async ({ page }) => {
   await page.goto('/owner/dashboard')
   await expect(page).toHaveURL('/')
-  await expect(page.getByRole('link', { name: 'Owner login' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Owner sign in' })).toBeVisible()
 })
 
 test('the admin area looks like any missing page', async ({ page }) => {

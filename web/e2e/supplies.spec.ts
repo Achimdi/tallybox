@@ -31,6 +31,10 @@ async function bottlesLeft(page: Page): Promise<number> {
 }
 
 async function expectAccessible(page: Page) {
+  // Check the page as people see it: after the fade-in has finished.
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== 'running'),
+  )
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()

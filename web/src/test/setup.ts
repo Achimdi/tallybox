@@ -12,8 +12,9 @@ import { resetCarts } from '@/features/orders/cartStore'
 expect.extend(matchers)
 
 // Screens on the demo data layer can take a moment when the whole suite runs in
-// parallel. Wait up to 4 seconds for them (failures still fail, just later).
-configure({ asyncUtilTimeout: 4000 })
+// parallel, especially straight after lint and type-checking in `npm run check`.
+// Wait up to 8 seconds for them (failures still fail, just later).
+configure({ asyncUtilTimeout: 8000 })
 
 afterEach(() => {
   cleanup()

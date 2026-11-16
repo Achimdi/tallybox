@@ -29,6 +29,10 @@ async function download(page: Page, button: string): Promise<{ name: string; byt
 
 /** Fails on any WCAG 2.1 A or AA problem axe can find on the page. */
 async function expectAccessible(page: Page) {
+  // Check the page as people see it: after the fade-in has finished.
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== 'running'),
+  )
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()

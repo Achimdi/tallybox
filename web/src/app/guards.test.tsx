@@ -6,18 +6,23 @@ import { renderApp, signedInAs } from '@/test/render'
 /** The access rules for screens, tested against the real route table. */
 
 describe('signed out', () => {
-  it('shows the welcome page with the three ways in', async () => {
+  it('shows the front page with every way in', async () => {
     renderApp({ path: '/' })
-    expect(await screen.findByRole('heading', { name: 'Tallybox' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /Know your stock/ }),
+    ).toBeInTheDocument()
+    for (const link of screen.getAllByRole('link', { name: /^Get started/ })) {
+      expect(link).toHaveAttribute('href', '/register')
+    }
     expect(screen.getByRole('link', { name: 'Register your business' })).toHaveAttribute(
       'href',
       '/register',
     )
-    expect(screen.getByRole('link', { name: 'Owner login' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Owner sign in' })).toHaveAttribute(
       'href',
       '/login/owner',
     )
-    expect(screen.getByRole('link', { name: 'Staff login' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Staff sign in' })).toHaveAttribute(
       'href',
       '/login/staff',
     )
@@ -27,7 +32,9 @@ describe('signed out', () => {
     'sends %s back to the welcome page',
     async (path) => {
       const { router } = renderApp({ path })
-      expect(await screen.findByRole('heading', { name: 'Tallybox' })).toBeInTheDocument()
+      expect(
+        await screen.findByRole('heading', { level: 1, name: /Know your stock/ }),
+      ).toBeInTheDocument()
       expect(router.state.location.pathname).toBe('/')
     },
   )
@@ -84,7 +91,7 @@ describe('owner', () => {
   it('returns to the welcome page after signing out', async () => {
     const { router } = renderApp({ path: '/owner/dashboard', session: signedInAs('owner') })
     await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
-    expect(await screen.findByRole('link', { name: 'Owner login' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Owner sign in' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 })
