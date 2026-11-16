@@ -464,6 +464,45 @@ export function describeSuppliesContract(name: string, setup: () => Promise<Shop
       ).toBe('permission_denied')
     })
 
+    it('lets the owner count archived stock, but never restock it', async () => {
+      const supply = await owner.supplies.upsert(newSupply({ openingQuantity: 40 }))
+      await owner.supplies.archive(supply.id)
+      // Leftover stock of something no longer used can be counted down to zero.
+      expect(
+        await owner.stock.adjust({
+          supplyId: supply.id,
+          countedQuantity: 0,
+          expectedQuantity: 40,
+          reason: 'expired',
+          note: '',
+        }),
+      ).toEqual({ quantity: 0 })
+      expect(
+        await codeOf(
+          owner.stock.restock({
+            clientId: crypto.randomUUID(),
+            receivedOn: today,
+            supplier: '',
+            note: '',
+            lines: [{ supplyId: supply.id, quantity: 5, unitCost: null }],
+          }),
+        ),
+      ).toBe('item_archived')
+
+      const item = await owner.items.upsert(newItem({ tracksOwnStock: true, openingQuantity: 6 }))
+      await owner.items.archive(item.id)
+      expect(
+        await owner.stock.adjust({
+          itemId: item.id,
+          countedQuantity: 0,
+          expectedQuantity: 6,
+          reason: 'damaged',
+          note: '',
+        }),
+      ).toEqual({ quantity: 0 })
+      await expectSupplyLedgerMatches(supply.id)
+    })
+
     it('never archives a supply that items on sale still use', async () => {
       const bottle = await owner.supplies.upsert(newSupply())
       const input = newItem({ supplies: [{ supplyId: bottle.id, unitsPerSale: 1 }] })

@@ -185,13 +185,14 @@ export default function AdjustStockPage() {
   let target: AdjustTarget | null = null
   if (forSupply) {
     const supply = supplies.data?.find((candidate) => candidate.id === supplyId)
-    if (supply?.active) {
+    if (supply) {
       target = { kind: 'supply', id: supply.id, name: supply.name, quantity: supply.quantity, home }
     }
   } else {
     const item = items.data?.find((candidate) => candidate.id === itemId)
     // Items that don't count their own stock are adjusted through their supplies.
-    if (item?.active && item.tracksOwnStock) {
+    // Archived stock can still be counted.
+    if (item?.tracksOwnStock) {
       target = { kind: 'item', id: item.id, name: item.name, quantity: item.quantity, home }
     }
   }

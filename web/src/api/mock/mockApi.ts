@@ -537,6 +537,8 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
     db: MockDb,
     business: MockBusiness,
     line: { itemId?: string | undefined; supplyId?: string | undefined },
+    // Restocks need the item or supply to be in use; a count may be made of archived stock too.
+    { allowArchived = false }: { allowArchived?: boolean } = {},
   ): StockTarget {
     if (Boolean(line.itemId) === Boolean(line.supplyId)) fail('validation')
     if (line.itemId) {
@@ -544,7 +546,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         (candidate) => candidate.id === line.itemId && candidate.businessId === business.id,
       )
       if (!item) fail('not_found')
-      if (!item.active) fail('item_archived')
+      if (!item.active && !allowArchived) fail('item_archived')
       if (!item.tracksOwnStock) fail('stock_not_counted')
       return { kind: 'item', record: item }
     }
@@ -552,7 +554,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
       (candidate) => candidate.id === line.supplyId && candidate.businessId === business.id,
     )
     if (!supply) fail('not_found')
-    if (!supply.active) fail('item_archived')
+    if (!supply.active && !allowArchived) fail('item_archived')
     return { kind: 'supply', record: supply }
   }
 
@@ -1201,7 +1203,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         ) {
           fail('validation')
         }
-        const target = stockTarget(db, business, input)
+        const target = stockTarget(db, business, input, { allowArchived: true })
         const current = target.record.quantity
         // The count was made against a different number: someone sold or restocked meanwhile.
         if (current !== input.expectedQuantity) fail('conflict', { quantity: current })

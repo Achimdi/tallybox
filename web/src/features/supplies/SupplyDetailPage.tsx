@@ -130,23 +130,22 @@ export default function SupplyDetailPage() {
           Edit
         </ButtonLink>
         {supply.active ? (
-          <>
-            <ButtonLink
-              to={`/owner/restock?supply=${supply.id}`}
-              variant="secondary"
-              leadingIcon={<Truck aria-hidden="true" className="size-5" />}
-            >
-              Restock
-            </ButtonLink>
-            <ButtonLink
-              to={`/owner/supplies/${supply.id}/adjust`}
-              variant="secondary"
-              leadingIcon={<Scale aria-hidden="true" className="size-5" />}
-            >
-              Adjust
-            </ButtonLink>
-          </>
+          <ButtonLink
+            to={`/owner/restock?supply=${supply.id}`}
+            variant="secondary"
+            leadingIcon={<Truck aria-hidden="true" className="size-5" />}
+          >
+            Restock
+          </ButtonLink>
         ) : null}
+        {/* Archived stock can still be counted, for example down to zero. */}
+        <ButtonLink
+          to={`/owner/supplies/${supply.id}/adjust`}
+          variant="secondary"
+          leadingIcon={<Scale aria-hidden="true" className="size-5" />}
+        >
+          Adjust
+        </ButtonLink>
         <Button
           variant="secondary"
           onClick={() => (supply.active ? setConfirming(true) : toggle())}

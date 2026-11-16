@@ -210,22 +210,23 @@ export default function ItemDetailPage() {
           Edit
         </ButtonLink>
         {item.active && item.tracksOwnStock ? (
-          <>
-            <ButtonLink
-              to={`/owner/restock?item=${item.id}`}
-              variant="secondary"
-              leadingIcon={<Truck aria-hidden="true" className="size-5" />}
-            >
-              Restock
-            </ButtonLink>
-            <ButtonLink
-              to={`/owner/items/${item.id}/adjust`}
-              variant="secondary"
-              leadingIcon={<Scale aria-hidden="true" className="size-5" />}
-            >
-              Adjust
-            </ButtonLink>
-          </>
+          <ButtonLink
+            to={`/owner/restock?item=${item.id}`}
+            variant="secondary"
+            leadingIcon={<Truck aria-hidden="true" className="size-5" />}
+          >
+            Restock
+          </ButtonLink>
+        ) : null}
+        {/* Archived stock can still be counted, for example down to zero. */}
+        {item.tracksOwnStock ? (
+          <ButtonLink
+            to={`/owner/items/${item.id}/adjust`}
+            variant="secondary"
+            leadingIcon={<Scale aria-hidden="true" className="size-5" />}
+          >
+            Adjust
+          </ButtonLink>
         ) : null}
         <Button
           variant="secondary"
