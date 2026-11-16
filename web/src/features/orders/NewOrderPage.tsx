@@ -12,8 +12,10 @@ import { cartCount } from '@/domain/orders'
 import { useSessionUser } from '@/features/auth/session'
 import { categoriesOf, matchesSearch, useItems } from '@/features/items/api'
 import { useMediaQuery, WIDE_SCREEN } from '@/lib/useMediaQuery'
+import { useSupplies } from '@/features/supplies/api'
 import { CartPanel } from './CartPanel'
 import { useCart } from './cartStore'
+import { capOrMax, sellingStock } from './stockRoom'
 
 const ALL = '__all__'
 
@@ -26,6 +28,7 @@ export default function NewOrderPage() {
   const user = useSessionUser()
   const currency = user.currencyCode ?? 'NGN'
   const items = useItems()
+  const supplies = useSupplies()
   const { cart, add } = useCart(user.id)
   const wide = useMediaQuery(WIDE_SCREEN)
   const [search, setSearch] = useState('')
@@ -44,6 +47,8 @@ export default function NewOrderPage() {
     (item) => (category === ALL || item.category === category) && matchesSearch(item.name, search),
   )
   const inCart = new Map(cart.lines.map((line) => [line.itemId, line.quantity]))
+  // What the cart may still take: own stock and shared supplies, with the cart counted.
+  const stock = sellingStock(forSale, supplies.data ?? [], cart.lines)
   const total = cart.lines.reduce(
     (sum, line) =>
       sum + (forSale.find((item) => item.id === line.itemId)?.price ?? 0) * line.quantity,
@@ -51,7 +56,7 @@ export default function NewOrderPage() {
   )
 
   let grid
-  if (items.isPending) {
+  if (items.isPending || supplies.isPending) {
     grid = (
       <div role="status" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <span className="sr-only">Loading items</span>
@@ -60,10 +65,13 @@ export default function NewOrderPage() {
         ))}
       </div>
     )
-  } else if (items.isError) {
+  } else if (items.isError || supplies.isError) {
     grid = (
       <div className="rounded-card border border-line bg-surface-raised">
-        <ErrorState error={items.error} onRetry={() => void items.refetch()} />
+        <ErrorState
+          error={items.error ?? supplies.error}
+          onRetry={() => void Promise.all([items.refetch(), supplies.refetch()])}
+        />
       </div>
     )
   } else if (forSale.length === 0) {
@@ -112,10 +120,11 @@ export default function NewOrderPage() {
               name={item.name}
               price={item.price}
               currency={currency}
-              quantity={item.quantity}
+              available={stock.capFor(item.id)}
               lowStockLevel={item.lowStockLevel}
+              shared={item.supplies.length > 0}
               inCart={inCart.get(item.id) ?? 0}
-              onAdd={() => add(item.id, item.quantity)}
+              onAdd={() => add(item.id, capOrMax(stock.capFor(item.id)))}
             />
           </li>
         ))}
@@ -152,7 +161,7 @@ export default function NewOrderPage() {
           className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-3 overflow-y-auto rounded-card border border-line bg-surface-raised p-5 shadow-soft"
         >
           <h2 className="text-title text-ink">Cart</h2>
-          <CartPanel items={items.data ?? []} />
+          <CartPanel items={items.data ?? []} supplies={supplies.data ?? []} />
         </aside>
       ) : (
         <>
@@ -170,7 +179,11 @@ export default function NewOrderPage() {
             document.body,
           )}
           <BottomSheet open={sheetOpen} onOpenChange={setSheetOpen} title="Cart">
-            <CartPanel items={items.data ?? []} onDone={() => setSheetOpen(false)} />
+            <CartPanel
+              items={items.data ?? []}
+              supplies={supplies.data ?? []}
+              onDone={() => setSheetOpen(false)}
+            />
           </BottomSheet>
         </>
       )}

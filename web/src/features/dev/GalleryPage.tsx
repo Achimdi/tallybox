@@ -248,7 +248,7 @@ export default function GalleryPage() {
               name={item.name}
               price={item.price}
               currency={CURRENCY}
-              quantity={item.quantity}
+              available={item.quantity}
               lowStockLevel={item.low}
               inCart={cart[item.id] ?? 0}
               onAdd={() =>

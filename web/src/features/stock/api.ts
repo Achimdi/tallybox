@@ -25,6 +25,7 @@ function useAfterStockChange() {
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
+      queryClient.invalidateQueries({ queryKey: ['supplies'] }),
       queryClient.invalidateQueries({ queryKey: ['stock'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
     ])

@@ -249,12 +249,31 @@ export default function OwnerHomePage() {
                 </ButtonLink>
               }
             />
-            {dashboard.data.lowStock.length === 0 ? (
+            {dashboard.data.lowStock.length === 0 && dashboard.data.lowSupplies.length === 0 ? (
               <Card>
                 <EmptyState title="Nothing is running low" className="py-4" />
               </Card>
             ) : (
               <ListGroup>
+                {dashboard.data.lowSupplies.map((supply) => {
+                  const status = stockStatus(supply.quantity, supply.lowStockLevel)
+                  return (
+                    <ListItem
+                      key={supply.id}
+                      to={`/owner/supplies/${supply.id}`}
+                      title={supply.name}
+                      subtitle={`Shared supply · low-stock level ${supply.lowStockLevel}`}
+                      trailing={
+                        <StatusChip
+                          status={status}
+                          label={
+                            status === 'out_of_stock' ? 'Out of stock' : `${supply.quantity} left`
+                          }
+                        />
+                      }
+                    />
+                  )
+                })}
                 {dashboard.data.lowStock.map((item) => {
                   const status = stockStatus(item.quantity, item.lowStockLevel)
                   return (

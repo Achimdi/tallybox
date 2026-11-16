@@ -76,20 +76,20 @@ describe('ItemCard', () => {
 
   it('shows price and stock, and adds on tap', async () => {
     const onAdd = vi.fn()
-    render(<ItemCard {...base} quantity={20} onAdd={onAdd} />)
+    render(<ItemCard {...base} available={20} onAdd={onAdd} />)
     expect(screen.getByText('₦250.00')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /^Add Bottled water/ }))
     expect(onAdd).toHaveBeenCalledOnce()
   })
 
   it('flags low stock in words, not just color', () => {
-    render(<ItemCard {...base} quantity={3} onAdd={vi.fn()} />)
+    render(<ItemCard {...base} available={3} onAdd={vi.fn()} />)
     expect(screen.getByText('Low: 3 left')).toBeInTheDocument()
   })
 
   it('cannot be tapped when out of stock', async () => {
     const onAdd = vi.fn()
-    render(<ItemCard {...base} quantity={0} onAdd={onAdd} />)
+    render(<ItemCard {...base} available={0} onAdd={onAdd} />)
     const card = screen.getByRole('button', { name: /^Add Bottled water/ })
     expect(card).toBeDisabled()
     expect(screen.getByText('Out of stock')).toBeInTheDocument()
@@ -98,7 +98,7 @@ describe('ItemCard', () => {
   })
 
   it('cannot add more than the stock on hand', () => {
-    render(<ItemCard {...base} quantity={2} inCart={2} onAdd={vi.fn()} />)
+    render(<ItemCard {...base} available={2} inCart={2} onAdd={vi.fn()} />)
     expect(screen.getByRole('button', { name: /^Add Bottled water/ })).toBeDisabled()
   })
 })

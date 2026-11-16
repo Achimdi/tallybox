@@ -9,3 +9,24 @@ export function stockStatus(quantity: number, lowStockLevel: number): StockStatu
   if (quantity <= lowStockLevel) return 'low_stock'
   return 'in_stock'
 }
+
+/**
+ * How many of an item can be sold, in words, for lists and chips.
+ * Own stock reads "24 in stock"; when shared supplies limit it, "964 can be sold".
+ * Items that count nothing have no status.
+ */
+export function availabilityLabel(item: {
+  available: number | null
+  lowStockLevel: number
+  supplies: readonly unknown[]
+}): { status: StockStatus | null; label: string } {
+  if (item.available === null) return { status: null, label: 'No stock count' }
+  const status = stockStatus(item.available, item.lowStockLevel)
+  if (status === 'out_of_stock') return { status, label: 'Out of stock' }
+  if (status === 'low_stock') return { status, label: `Low: ${item.available} left` }
+  return {
+    status,
+    label:
+      item.supplies.length > 0 ? `${item.available} can be sold` : `${item.available} in stock`,
+  }
+}

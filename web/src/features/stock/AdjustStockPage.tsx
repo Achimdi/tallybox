@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import type { Item } from '@/api/types'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { BackLink } from '@/components/BackLink'
 import { Button } from '@/components/Button'
@@ -18,11 +17,22 @@ import {
   type AdjustReason,
 } from '@/domain/stock'
 import { useItems } from '@/features/items/api'
+import { useSupplies } from '@/features/supplies/api'
 import { AppError, toAppError } from '@/lib/errors'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useAdjustStock } from './api'
 
-function AdjustForm({ item }: { item: Item }) {
+/** What is being counted: an item's own stock or a shared supply. */
+interface AdjustTarget {
+  kind: 'item' | 'supply'
+  id: string
+  name: string
+  quantity: number
+  /** Where to go after saving. */
+  home: string
+}
+
+function AdjustForm({ item }: { item: AdjustTarget }) {
   const navigate = useNavigate()
   const toast = useToast()
   const online = useOnlineStatus()
@@ -53,7 +63,7 @@ function AdjustForm({ item }: { item: Item }) {
     setError(null)
     try {
       await adjust.mutateAsync({
-        itemId: item.id,
+        ...(item.kind === 'supply' ? { supplyId: item.id } : { itemId: item.id }),
         countedQuantity: countedNumber,
         expectedQuantity: expected,
         reason,
@@ -65,7 +75,7 @@ function AdjustForm({ item }: { item: Item }) {
         description: `${item.name}: now ${countedNumber}.`,
         tone: 'success',
       })
-      await navigate(`/owner/items/${item.id}`)
+      await navigate(item.home)
     } catch (thrown) {
       setConfirming(false)
       const appError = toAppError(thrown)
@@ -160,25 +170,45 @@ function AdjustForm({ item }: { item: Item }) {
   )
 }
 
-/** Sets an item's stock to what was actually counted, with a reason. */
+/**
+ * Sets an item's own stock, or a shared supply, to what was actually counted,
+ * with a reason. Serves /owner/items/:itemId/adjust and /owner/supplies/:supplyId/adjust.
+ */
 export default function AdjustStockPage() {
-  const { itemId = '' } = useParams()
+  const { itemId, supplyId } = useParams()
   const items = useItems()
-  const item = items.data?.find((candidate) => candidate.id === itemId)
+  const supplies = useSupplies()
+  const forSupply = supplyId !== undefined
+  const query = forSupply ? supplies : items
+  const home = forSupply ? `/owner/supplies/${supplyId}` : `/owner/items/${itemId ?? ''}`
+
+  let target: AdjustTarget | null = null
+  if (forSupply) {
+    const supply = supplies.data?.find((candidate) => candidate.id === supplyId)
+    if (supply?.active) {
+      target = { kind: 'supply', id: supply.id, name: supply.name, quantity: supply.quantity, home }
+    }
+  } else {
+    const item = items.data?.find((candidate) => candidate.id === itemId)
+    // Items that don't count their own stock are adjusted through their supplies.
+    if (item?.active && item.tracksOwnStock) {
+      target = { kind: 'item', id: item.id, name: item.name, quantity: item.quantity, home }
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-      <BackLink to={`/owner/items/${itemId}`} label="Item" />
+      <BackLink to={home} label={forSupply ? 'Supply' : 'Item'} />
       <header className="flex flex-col gap-1">
         <h1 className="text-title-lg text-ink">Adjust stock</h1>
-        {item ? <p className="text-body break-words text-ink-muted">{item.name}</p> : null}
+        {target ? <p className="text-body break-words text-ink-muted">{target.name}</p> : null}
       </header>
-      {items.isPending ? (
+      {query.isPending ? (
         <Skeleton className="h-48 w-full rounded-card" />
-      ) : items.isError || !item ? (
-        <ErrorState error={items.error ?? new AppError('not_found')} />
+      ) : query.isError || !target ? (
+        <ErrorState error={query.error ?? new AppError('not_found')} />
       ) : (
-        <AdjustForm item={item} />
+        <AdjustForm key={target.id} item={target} />
       )}
     </div>
   )

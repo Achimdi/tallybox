@@ -6,9 +6,8 @@ import { Money } from '@/components/Money'
 import { SearchBar } from '@/components/SearchBar'
 import { SkeletonList } from '@/components/Skeleton'
 import { EmptyState, ErrorState } from '@/components/states'
-import { StatusChip } from '@/components/StatusChip'
 import { useSessionUser } from '@/features/auth/session'
-import { stockStatus } from '@/lib/stock'
+import { StockLabel } from './StockLabel'
 import { categoriesOf, matchesSearch, useItems } from './api'
 
 const ALL = '__all__'
@@ -77,37 +76,21 @@ export default function StaffItemsPage() {
         </div>
       ) : (
         <ListGroup>
-          {shown.map((item) => {
-            const status = stockStatus(item.quantity, item.lowStockLevel)
-            return (
-              <ListItem
-                key={item.id}
-                wrap
-                title={item.name}
-                subtitle={
-                  <>
-                    <Money minor={item.price} currency={currency} />
-                    {item.unit ? ` per ${item.unit}` : ''}
-                    {item.category ? ` · ${item.category}` : ''}
-                  </>
-                }
-                trailing={
-                  status === 'in_stock' ? (
-                    <span className="text-label font-normal text-ink-muted tabular-nums">
-                      {item.quantity} in stock
-                    </span>
-                  ) : (
-                    <StatusChip
-                      status={status}
-                      label={
-                        status === 'out_of_stock' ? 'Out of stock' : `Low: ${item.quantity} left`
-                      }
-                    />
-                  )
-                }
-              />
-            )
-          })}
+          {shown.map((item) => (
+            <ListItem
+              key={item.id}
+              wrap
+              title={item.name}
+              subtitle={
+                <>
+                  <Money minor={item.price} currency={currency} />
+                  {item.unit ? ` per ${item.unit}` : ''}
+                  {item.category ? ` · ${item.category}` : ''}
+                </>
+              }
+              trailing={<StockLabel item={item} />}
+            />
+          ))}
         </ListGroup>
       )}
     </div>

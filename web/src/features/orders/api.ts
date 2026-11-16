@@ -40,6 +40,7 @@ export function useCreateOrder() {
     onSettled: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['supplies'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: KEYS.held }),
         queryClient.invalidateQueries({ queryKey: ['stock'] }),
@@ -95,6 +96,7 @@ export function useVoidOrder() {
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['supplies'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: ['stock'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),

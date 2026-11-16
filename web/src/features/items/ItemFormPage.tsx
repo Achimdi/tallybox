@@ -17,7 +17,9 @@ import { useBusinessSettings } from '@/features/business/api'
 import { AppError, toAppError, userMessage } from '@/lib/errors'
 import { minorToInputValue, minorUnitDigits, parseMoney } from '@/lib/money'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
+import { useSupplies } from '@/features/supplies/api'
 import { categoriesOf, useItemCosts, useItems, useUpsertItem } from './api'
+import { StockModeFields, stockModeProblems, type StockModeDraft } from './StockModeFields'
 
 const wholeNumber = (message: string) =>
   z
@@ -73,6 +75,28 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
   const [newId] = useState(() => crypto.randomUUID())
   const [error, setError] = useState<AppError | null>(null)
   const editing = item !== null
+  const supplies = useSupplies()
+  const initialMode: StockModeDraft = {
+    tracksOwnStock: item?.tracksOwnStock ?? true,
+    usesSupplies: (item?.supplies.length ?? 0) > 0,
+    supplies: (item?.supplies ?? []).map((use) => ({
+      key: use.supplyId,
+      supplyId: use.supplyId,
+      unitsPerSale: String(use.unitsPerSale),
+    })),
+  }
+  const [mode, setMode] = useState<StockModeDraft>(initialMode)
+  const [modeErrors, setModeErrors] = useState(false)
+  const modeOf = (draft: StockModeDraft) => ({
+    tracksOwnStock: draft.tracksOwnStock,
+    supplies: draft.usesSupplies
+      ? draft.supplies.map((row) => ({
+          supplyId: row.supplyId,
+          unitsPerSale: Number(row.unitsPerSale),
+        }))
+      : [],
+  })
+  const modeChanged = JSON.stringify(modeOf(mode)) !== JSON.stringify(modeOf(initialMode))
 
   const {
     register,
@@ -94,6 +118,9 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
 
   const onSubmit = handleSubmit(async (values) => {
     setError(null)
+    setModeErrors(true)
+    const problems = stockModeProblems(mode)
+    if (problems.supplies || Object.keys(problems.rows).length > 0) return
     try {
       const saved = await upsert.mutateAsync({
         itemId: item?.id ?? newId,
@@ -104,7 +131,10 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
         costPrice: values.costPrice === '' ? null : parseMoney(values.costPrice, currency),
         lowStockLevel: values.lowStockLevel === '' ? null : Number(values.lowStockLevel),
         openingQuantity:
-          editing || values.openingQuantity === '' ? 0 : Number(values.openingQuantity),
+          editing || !mode.tracksOwnStock || values.openingQuantity === ''
+            ? 0
+            : Number(values.openingQuantity),
+        ...modeOf(mode),
       })
       toast({ title: editing ? 'Item saved' : 'Item added', tone: 'success' })
       await navigate(`/owner/items/${saved.id}`, { replace: true })
@@ -171,7 +201,15 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
         error={errors.costPrice?.message}
         {...register('costPrice')}
       />
-      {editing ? null : (
+      <StockModeFields
+        draft={mode}
+        onChange={setMode}
+        supplies={(supplies.data ?? []).filter((supply) => supply.active)}
+        showErrors={modeErrors}
+        editing={editing}
+        changed={modeChanged}
+      />
+      {editing || !mode.tracksOwnStock ? null : (
         <TextField
           label="Opening quantity"
           inputMode="numeric"

@@ -13,6 +13,8 @@ import type { useMovements } from './api'
 
 function describe(move: StockMovement): string {
   const parts = [`${move.quantityBefore} → ${move.quantityAfter}`]
+  // A shared supply used (or returned) by a sale says which item it was for.
+  if (move.sourceItemName) parts.push(`for ${move.sourceItemName}`)
   if (move.orderNumber !== null) parts.push(`order ${formatOrderNumber(move.orderNumber)}`)
   if (move.supplier) parts.push(move.supplier)
   parts.push(`by ${move.createdByName}`)

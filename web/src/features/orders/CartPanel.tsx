@@ -1,7 +1,7 @@
 import { CircleCheckBig, CirclePause, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import type { Item } from '@/api/types'
+import type { Item, Supply } from '@/api/types'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { CheckboxField } from '@/components/CheckboxField'
@@ -20,12 +20,14 @@ import {
   type PaymentMethod,
   type StockProblem,
 } from '@/domain/orders'
+import { describeSupplyProblem, type SupplyProblem } from '@/domain/supplies'
 import { useSessionUser } from '@/features/auth/session'
 import { toAppError, type AppError } from '@/lib/errors'
 import { formatMoney } from '@/lib/money'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useCreateOrder, useSaveHeldOrder } from './api'
 import { useCart } from './cartStore'
+import { capOrMax, sellingStock } from './stockRoom'
 import { portalBase } from './portal'
 
 const REFERENCE_LABEL: Record<PaymentMethod, string | null> = {
@@ -36,12 +38,14 @@ const REFERENCE_LABEL: Record<PaymentMethod, string | null> = {
 
 interface CartPanelProps {
   items: readonly Item[]
+  /** Shared supplies, to check items that use them. */
+  supplies: readonly Supply[]
   /** Called after confirming or holding, for example to close the cart sheet. */
   onDone?: () => void
 }
 
 /** The cart, the payment details, and the Hold and Confirm buttons. */
-export function CartPanel({ items, onDone }: CartPanelProps) {
+export function CartPanel({ items, supplies, onDone }: CartPanelProps) {
   const user = useSessionUser()
   const currency = user.currencyCode ?? 'NGN'
   const navigate = useNavigate()
@@ -54,19 +58,21 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
   const [error, setError] = useState<AppError | null>(null)
 
   const itemsById = new Map(items.map((item) => [item.id, item]))
+  const stock = sellingStock(items, supplies, cart.lines)
   const lines = cart.lines.map((line) => {
     const item = itemsById.get(line.itemId)
+    const ownLeft = stock.ownShortfall(line.itemId, line.quantity)
     return {
       ...line,
       item,
+      ownLeft,
       lineTotal: item ? item.price * line.quantity : 0,
       // Checked again on the server when confirming; this is a quick warning.
-      problem:
-        !item || !item.active ? 'unavailable' : line.quantity > item.quantity ? 'short' : null,
+      problem: !item || !item.active ? 'unavailable' : ownLeft !== null ? 'short' : null,
     }
   })
   const total = lines.reduce((sum, line) => sum + line.lineTotal, 0)
-  const hasProblems = lines.some((line) => line.problem !== null)
+  const hasProblems = lines.some((line) => line.problem !== null) || stock.supplyProblems.length > 0
   const empty = cart.lines.length === 0
   const busy = createOrder.isPending || saveHeld.isPending
 
@@ -135,6 +141,7 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
   }
 
   const problems = error?.details?.problems as StockProblem[] | undefined
+  const shortSupplies = error?.details?.supplyProblems as SupplyProblem[] | undefined
   const unavailableNames = error?.details?.names as string[] | undefined
   const referenceLabel = cart.paymentMethod ? REFERENCE_LABEL[cart.paymentMethod] : null
 
@@ -148,11 +155,16 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
         />
       ) : null}
 
-      {error?.code === 'insufficient_stock' && problems ? (
+      {error?.code === 'insufficient_stock' && (problems?.length || shortSupplies?.length) ? (
         <Banner
           tone="error"
-          title={describeStockProblems(problems)}
-          description="Lower the quantity or remove the item, then confirm again."
+          title={[
+            problems?.length ? describeStockProblems(problems) : null,
+            ...(shortSupplies ?? []).map(describeSupplyProblem),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          description="Stock changed while you were selling. Lower the quantity or remove an item, then confirm again."
         />
       ) : error?.code === 'item_unavailable' && unavailableNames ? (
         <Banner
@@ -163,6 +175,14 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
       ) : (
         <ErrorBanner error={error} />
       )}
+
+      {!error && stock.supplyProblems.length > 0 ? (
+        <Banner
+          tone="error"
+          title={stock.supplyProblems.map(describeSupplyProblem).join(' ')}
+          description="These items share a supply. Lower a quantity or remove an item."
+        />
+      ) : null}
 
       <section aria-label="Cart" className="flex flex-col gap-3">
         <ul className="flex flex-col divide-y divide-line">
@@ -180,7 +200,7 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
                   ) : null}
                   {line.problem === 'short' ? (
                     <span className="text-label font-semibold text-error-strong">
-                      Only {line.item?.quantity ?? 0} left
+                      Only {line.ownLeft ?? 0} left
                     </span>
                   ) : line.problem === 'unavailable' ? (
                     <span className="text-label font-semibold text-error-strong">
@@ -199,7 +219,7 @@ export function CartPanel({ items, onDone }: CartPanelProps) {
                   label={`Quantity of ${line.item?.name ?? 'item'}`}
                   value={line.quantity}
                   min={1}
-                  max={Math.max(line.item?.quantity ?? line.quantity, line.quantity)}
+                  max={Math.max(capOrMax(stock.capFor(line.itemId)), line.quantity)}
                   onChange={(quantity) => setQuantity(line.itemId, quantity)}
                 />
                 <Button

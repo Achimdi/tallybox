@@ -19,9 +19,7 @@ describe('developer portal: businesses', () => {
     const sunrise = await screen.findByRole('link', { name: /Sunrise Pharmacy/ })
     expect(sunrise).toHaveTextContent('owner@demo.tallybox.test')
     expect(sunrise).toHaveTextContent(/Ends in 5 days/)
-    expect(screen.getByRole('link', { name: /Green Leaf Restaurant/ })).toHaveTextContent(
-      'Suspended',
-    )
+    expect(screen.getByRole('link', { name: /Harbour Bakery/ })).toHaveTextContent('Suspended')
     expect(screen.getByRole('link', { name: /Daily Needs Supermarket/ })).toHaveTextContent(
       'Access ended',
     )

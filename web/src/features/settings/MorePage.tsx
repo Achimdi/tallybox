@@ -1,4 +1,4 @@
-import { CirclePlus, LifeBuoy, ScrollText, Settings, Truck, User, Users } from 'lucide-react'
+import { Boxes, CirclePlus, LifeBuoy, ScrollText, Settings, Truck, User, Users } from 'lucide-react'
 import { ListGroup, ListItem } from '@/components/ListItem'
 import { SectionHeader } from '@/components/SectionHeader'
 import { StatusChip } from '@/components/StatusChip'
@@ -32,6 +32,12 @@ export default function MorePage() {
             leading={<Truck aria-hidden="true" className={icon} />}
             title="Restock"
             subtitle="Record a delivery"
+          />
+          <ListItem
+            to="/owner/supplies"
+            leading={<Boxes aria-hidden="true" className={icon} />}
+            title="Supplies"
+            subtitle="Bottles, caps and other stock shared by items"
           />
           <ListItem
             to="/owner/ledger"

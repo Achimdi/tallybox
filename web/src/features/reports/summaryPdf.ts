@@ -166,11 +166,27 @@ export async function reportSummaryPdf(input: SummaryInput): Promise<File> {
         )
       }
 
+      if (report.supplies.length > 0) {
+        heading('Shared supplies')
+        table(
+          report.supplies.map((supply) => [
+            `${supply.name}${supply.byItem.length > 0 ? ` (${supply.byItem.map((entry) => `${entry.name} ${entry.used}`).join(', ')})` : ''}`,
+            `${supply.used} used · ${supply.remaining} left`,
+          ]),
+        )
+      }
+
       if (report.stockValue) {
         heading('Stock value now')
         table([
           ['At cost price', money(report.stockValue.atCost)],
           ['At selling price', money(report.stockValue.atPrice)],
+          ...(report.supplies.length > 0
+            ? ([['Shared supplies at cost', money(report.stockValue.suppliesAtCost)]] as [
+                string,
+                string,
+              ][])
+            : []),
         ])
         if (report.stockValue.itemsWithoutCost > 0) {
           y += write(

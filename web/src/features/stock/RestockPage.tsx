@@ -14,6 +14,7 @@ import { useToast } from '@/components/toast-context'
 import { STOCK_LIMITS } from '@/domain/stock'
 import { useSessionUser } from '@/features/auth/session'
 import { matchesSearch, useItems } from '@/features/items/api'
+import { useSupplies } from '@/features/supplies/api'
 import { addDays, dateKey } from '@/lib/dates'
 import { toAppError, type AppError } from '@/lib/errors'
 import { parseMoney } from '@/lib/money'
@@ -21,9 +22,19 @@ import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useRestock } from './api'
 
 interface DraftLine {
-  itemId: string
+  /** "item:<id>" or "supply:<id>". */
+  key: string
   quantity: string
   unitCost: string
+}
+
+/** Something a delivery can add to: an item that counts its own stock, or a shared supply. */
+interface StockOption {
+  key: string
+  kind: 'item' | 'supply'
+  id: string
+  name: string
+  quantity: number
 }
 
 /** Records one delivery: several items at once, each adding to stock, with a ledger entry each. */
@@ -35,12 +46,15 @@ export default function RestockPage() {
   const toast = useToast()
   const online = useOnlineStatus()
   const items = useItems()
+  const supplies = useSupplies()
   const restock = useRestock()
   const [params] = useSearchParams()
 
   const [lines, setLines] = useState<DraftLine[]>(() => {
-    const preset = params.get('item')
-    return preset ? [{ itemId: preset, quantity: '', unitCost: '' }] : []
+    const item = params.get('item')
+    const supply = params.get('supply')
+    const key = item ? `item:${item}` : supply ? `supply:${supply}` : null
+    return key ? [{ key, quantity: '', unitCost: '' }] : []
   })
   const [receivedOn, setReceivedOn] = useState(today)
   const [supplier, setSupplier] = useState('')
@@ -52,10 +66,31 @@ export default function RestockPage() {
   const [showErrors, setShowErrors] = useState(false)
   const [error, setError] = useState<AppError | null>(null)
 
-  const forSale = (items.data ?? []).filter((item) => item.active)
-  const byId = new Map(forSale.map((item) => [item.id, item]))
-  const choosable = forSale.filter(
-    (item) => !lines.some((line) => line.itemId === item.id) && matchesSearch(item.name, search),
+  // Items whose own stock isn't counted are restocked through their supplies instead.
+  const options: StockOption[] = [
+    ...(supplies.data ?? [])
+      .filter((supply) => supply.active)
+      .map((supply) => ({
+        key: `supply:${supply.id}`,
+        kind: 'supply' as const,
+        id: supply.id,
+        name: supply.name,
+        quantity: supply.quantity,
+      })),
+    ...(items.data ?? [])
+      .filter((item) => item.active && item.tracksOwnStock)
+      .map((item) => ({
+        key: `item:${item.id}`,
+        kind: 'item' as const,
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+      })),
+  ]
+  const byKey = new Map(options.map((option) => [option.key, option]))
+  const choosable = options.filter(
+    (option) =>
+      !lines.some((line) => line.key === option.key) && matchesSearch(option.name, search),
   )
 
   const quantityError = (line: DraftLine) =>
@@ -75,10 +110,8 @@ export default function RestockPage() {
         ? 'Use a date within the last year.'
         : undefined
 
-  const update = (itemId: string, change: Partial<DraftLine>) =>
-    setLines((current) =>
-      current.map((line) => (line.itemId === itemId ? { ...line, ...change } : line)),
-    )
+  const update = (key: string, change: Partial<DraftLine>) =>
+    setLines((current) => current.map((line) => (line.key === key ? { ...line, ...change } : line)))
 
   const save = async () => {
     setShowErrors(true)
@@ -95,11 +128,14 @@ export default function RestockPage() {
         receivedOn,
         supplier,
         note,
-        lines: lines.map((line) => ({
-          itemId: line.itemId,
-          quantity: Number(line.quantity),
-          unitCost: line.unitCost.trim() === '' ? null : parseMoney(line.unitCost, currency),
-        })),
+        lines: lines.map((line) => {
+          const [kind, id = ''] = line.key.split(':')
+          return {
+            ...(kind === 'supply' ? { supplyId: id } : { itemId: id }),
+            quantity: Number(line.quantity),
+            unitCost: line.unitCost.trim() === '' ? null : parseMoney(line.unitCost, currency),
+          }
+        }),
       })
       toast({
         title: `Delivery recorded: ${lines.length} ${lines.length === 1 ? 'item' : 'items'}`,
@@ -112,10 +148,15 @@ export default function RestockPage() {
   }
 
   let body
-  if (items.isPending) {
+  if (items.isPending || supplies.isPending) {
     body = <Skeleton className="h-40 w-full rounded-card" />
-  } else if (items.isError) {
-    body = <ErrorState error={items.error} onRetry={() => void items.refetch()} />
+  } else if (items.isError || supplies.isError) {
+    body = (
+      <ErrorState
+        error={items.error ?? supplies.error}
+        onRetry={() => void Promise.all([items.refetch(), supplies.refetch()])}
+      />
+    )
   } else {
     body = (
       <div className="flex flex-col gap-5">
@@ -148,10 +189,10 @@ export default function RestockPage() {
           ) : (
             <ul className="flex flex-col gap-3">
               {lines.map((line) => {
-                const item = byId.get(line.itemId)
+                const item = byKey.get(line.key)
                 return (
                   <li
-                    key={line.itemId}
+                    key={line.key}
                     className="flex flex-col gap-3 rounded-card border border-line bg-surface-raised p-4 shadow-soft"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -160,16 +201,16 @@ export default function RestockPage() {
                           {item?.name ?? 'Unknown item'}
                         </span>
                         <span className="text-label font-normal text-ink-muted">
-                          {item ? `${item.quantity} in stock now` : 'No longer on sale'}
+                          {item
+                            ? `${item.kind === 'supply' ? 'Supply · ' : ''}${item.quantity} in stock now`
+                            : 'No longer on sale'}
                         </span>
                       </div>
                       <Button
                         variant="ghost"
                         aria-label={`Remove ${item?.name ?? 'item'}`}
                         onClick={() =>
-                          setLines((current) =>
-                            current.filter((entry) => entry.itemId !== line.itemId),
-                          )
+                          setLines((current) => current.filter((entry) => entry.key !== line.key))
                         }
                         leadingIcon={<Trash2 aria-hidden="true" className="size-5" />}
                       >
@@ -182,7 +223,7 @@ export default function RestockPage() {
                         inputMode="numeric"
                         autoComplete="off"
                         value={line.quantity}
-                        onChange={(event) => update(line.itemId, { quantity: event.target.value })}
+                        onChange={(event) => update(line.key, { quantity: event.target.value })}
                         error={showErrors ? quantityError(line) : undefined}
                       />
                       <TextField
@@ -191,7 +232,7 @@ export default function RestockPage() {
                         autoComplete="off"
                         hint="Optional"
                         value={line.unitCost}
-                        onChange={(event) => update(line.itemId, { unitCost: event.target.value })}
+                        onChange={(event) => update(line.key, { unitCost: event.target.value })}
                         error={showErrors ? costError(line) : undefined}
                       />
                     </div>
@@ -240,36 +281,36 @@ export default function RestockPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-title-lg text-ink">Restock</h1>
         <p className="text-body text-ink-muted">
-          Record a delivery. Each item&apos;s stock goes up by what arrived.
+          Record a delivery of items or supplies. Each one&apos;s stock goes up by what arrived.
         </p>
       </header>
       {body}
 
-      <BottomSheet open={pickerOpen} onOpenChange={setPickerOpen} title="Add an item">
+      <BottomSheet open={pickerOpen} onOpenChange={setPickerOpen} title="Add to the delivery">
         <div className="flex flex-col gap-3">
           <SearchBar
             value={search}
             onChange={setSearch}
-            label="Search items"
-            placeholder="Search items"
+            label="Search items and supplies"
+            placeholder="Search items and supplies"
           />
           {choosable.length === 0 ? (
             <EmptyState
-              title={forSale.length === 0 ? 'No items yet' : 'No items match'}
+              title={options.length === 0 ? 'Nothing to restock yet' : 'Nothing matches'}
               className="py-6"
             />
           ) : (
             <ListGroup>
-              {choosable.map((item) => (
+              {choosable.map((option) => (
                 <ListItem
-                  key={item.id}
+                  key={option.key}
                   wrap
-                  title={item.name}
-                  subtitle={`${item.quantity} in stock`}
+                  title={option.name}
+                  subtitle={`${option.kind === 'supply' ? 'Supply · ' : ''}${option.quantity} in stock`}
                   onClick={() => {
                     setLines((current) => [
                       ...current,
-                      { itemId: item.id, quantity: '', unitCost: '' },
+                      { key: option.key, quantity: '', unitCost: '' },
                     ])
                     setSearch('')
                     setPickerOpen(false)

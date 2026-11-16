@@ -224,6 +224,36 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
         </>
       )}
 
+      {report.supplies.length > 0 ? (
+        <Card title="Shared supplies">
+          <ul aria-label="Shared supplies" className="flex flex-col divide-y divide-line">
+            {report.supplies.map((supply) => (
+              <li key={supply.supplyId} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-body font-semibold text-ink">{supply.name}</span>
+                  <span className="text-label text-ink-muted tabular-nums">
+                    {supply.used} used · {supply.remaining} left now
+                  </span>
+                </div>
+                {supply.byItem.length > 0 ? (
+                  <BarList
+                    label={`${supply.name} used by item`}
+                    rows={supply.byItem.map((entry) => ({
+                      key: entry.itemId,
+                      label: entry.name,
+                      value: entry.used,
+                      valueText: String(entry.used),
+                    }))}
+                  />
+                ) : (
+                  <p className="text-label font-normal text-ink-muted">None used in this range.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card title="Stock value now">
         {report.stockValue ? (
           <div className="flex flex-col gap-3">
@@ -240,6 +270,14 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
                   <Money minor={report.stockValue.atPrice} currency={currency} />
                 </dd>
               </div>
+              {report.supplies.length > 0 ? (
+                <div>
+                  <dt className="text-label font-normal text-ink-muted">Shared supplies at cost</dt>
+                  <dd className="text-title text-ink">
+                    <Money minor={report.stockValue.suppliesAtCost} currency={currency} />
+                  </dd>
+                </div>
+              ) : null}
             </dl>
             {report.stockValue.itemsWithoutCost > 0 ? (
               <p className="text-label font-normal text-ink-muted">

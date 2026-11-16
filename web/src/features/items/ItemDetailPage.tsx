@@ -1,6 +1,7 @@
 import { Archive, Pencil, RotateCcw, Scale, Truck } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
+import type { ItemSupplyUse, StockModeChange } from '@/api/types'
 import { Banner } from '@/components/Banner'
 import { BackLink } from '@/components/BackLink'
 import { Button, ButtonLink } from '@/components/Button'
@@ -11,13 +12,16 @@ import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/toast-context'
+import { stockModeLabel } from '@/domain/supplies'
 import { useSessionUser } from '@/features/auth/session'
 import { useMovements } from '@/features/stock/api'
 import { MovementList } from '@/features/stock/MovementList'
+import { useSupplies } from '@/features/supplies/api'
+import { formatDateTime } from '@/lib/dates'
 import { AppError } from '@/lib/errors'
-import { stockStatus } from '@/lib/stock'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import { useItemCosts, useItems, useSetItemArchived } from './api'
+import { useItemCosts, useItems, useSetItemArchived, useStockModeChanges } from './api'
+import { StockLabel } from './StockLabel'
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -28,7 +32,36 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** One item: prices, stock, actions, and every stock change it has had. */
+function describeMode(mode: { tracksOwnStock: boolean; supplies: ItemSupplyUse[] }): string {
+  const label = stockModeLabel(mode)
+  if (mode.supplies.length === 0) return label
+  return `${label}: ${mode.supplies.map((use) => `${use.unitsPerSale} × ${use.name}`).join(', ')}`
+}
+
+function ModeChanges({ changes }: { changes: readonly StockModeChange[] }) {
+  const user = useSessionUser()
+  if (changes.length === 0) return null
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeader title="Changes to how stock is counted" />
+      <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-surface-raised shadow-soft">
+        {changes.map((change) => (
+          <li key={change.id} className="flex flex-col gap-0.5 px-4 py-3">
+            <span className="text-body text-ink">
+              {describeMode(change.before)} → {describeMode(change.after)}
+            </span>
+            <span className="text-caption text-ink-subtle">
+              {change.changedByName} ·{' '}
+              {formatDateTime(new Date(change.changedAt), user.timezone ?? 'UTC')}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** One item: prices, how its stock is counted, actions, and every stock change it has had. */
 export default function ItemDetailPage() {
   const { itemId = '' } = useParams()
   const user = useSessionUser()
@@ -37,7 +70,9 @@ export default function ItemDetailPage() {
   const online = useOnlineStatus()
   const items = useItems()
   const costs = useItemCosts()
+  const supplies = useSupplies()
   const history = useMovements({ itemId })
+  const modeChanges = useStockModeChanges(itemId)
   const setArchived = useSetItemArchived()
   const [confirming, setConfirming] = useState(false)
 
@@ -65,11 +100,12 @@ export default function ItemDetailPage() {
   }
 
   const cost = costs.data?.[item.id]
-  const status = stockStatus(item.quantity, item.lowStockLevel)
   const margin =
     cost !== undefined && item.price > 0
       ? Math.round(((item.price - cost) / item.price) * 100)
       : null
+  const supplyLeft = (supplyId: string) =>
+    supplies.data?.find((supply) => supply.id === supplyId)?.quantity
 
   const toggleArchived = () => {
     setArchived.mutate(
@@ -89,16 +125,7 @@ export default function ItemDetailPage() {
         <h1 className="text-title-lg break-words text-ink">{item.name}</h1>
         <div className="flex flex-wrap items-center gap-2">
           {item.active ? (
-            <StatusChip
-              status={status}
-              label={
-                status === 'in_stock'
-                  ? `${item.quantity} in stock`
-                  : status === 'out_of_stock'
-                    ? 'Out of stock'
-                    : `Low: ${item.quantity} left`
-              }
-            />
+            <StockLabel item={item} chip />
           ) : (
             <StatusChip status="voided" label="Archived" />
           )}
@@ -133,13 +160,45 @@ export default function ItemDetailPage() {
             )}
             {margin !== null ? <span className="text-ink-muted"> · {margin}% margin</span> : null}
           </Detail>
-          <Detail label="In stock">
-            <span className="tabular-nums">{item.quantity}</span>
+          <Detail label="Stock counted by">{stockModeLabel(item)}</Detail>
+          <Detail label="Can be sold now">
+            <span className="tabular-nums">
+              {item.available === null ? 'No limit' : item.available}
+            </span>
           </Detail>
+          {item.tracksOwnStock ? (
+            <Detail label="Own stock">
+              <span className="tabular-nums">{item.quantity}</span>
+            </Detail>
+          ) : null}
           <Detail label="Low-stock level">
             <span className="tabular-nums">{item.lowStockLevel}</span>
           </Detail>
         </dl>
+        {item.supplies.length > 0 ? (
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-label font-normal text-ink-muted">Each one sold uses</p>
+            <ul className="mt-1 flex flex-col gap-1">
+              {item.supplies.map((use) => (
+                <li key={use.supplyId} className="text-body text-ink">
+                  {use.unitsPerSale} ×{' '}
+                  <Link
+                    to={`/owner/supplies/${use.supplyId}`}
+                    className="font-semibold text-primary underline"
+                  >
+                    {use.name}
+                  </Link>
+                  {supplyLeft(use.supplyId) !== undefined ? (
+                    <span className="text-ink-muted tabular-nums">
+                      {' '}
+                      · {supplyLeft(use.supplyId)} left
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -150,7 +209,7 @@ export default function ItemDetailPage() {
         >
           Edit
         </ButtonLink>
-        {item.active ? (
+        {item.active && item.tracksOwnStock ? (
           <>
             <ButtonLink
               to={`/owner/restock?item=${item.id}`}
@@ -185,10 +244,14 @@ export default function ItemDetailPage() {
         </Button>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Stock history" />
-        <MovementList movements={history} showItem={false} emptyTitle="No stock changes yet" />
-      </section>
+      {item.tracksOwnStock || (history.data?.pages[0]?.total ?? 0) > 0 ? (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Stock history" />
+          <MovementList movements={history} showItem={false} emptyTitle="No stock changes yet" />
+        </section>
+      ) : null}
+
+      <ModeChanges changes={modeChanges.data ?? []} />
 
       <ConfirmDialog
         open={confirming}

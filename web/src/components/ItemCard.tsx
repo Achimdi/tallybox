@@ -8,9 +8,14 @@ interface ItemCardProps {
   /** Selling price in minor units. */
   price: number
   currency: string
-  /** Stock on hand. */
-  quantity: number
+  /**
+   * How many can be sold (with what is already in the cart). For items using
+   * shared supplies this is limited by the supplies. Null: not counted, no limit.
+   */
+  available: number | null
   lowStockLevel: number
+  /** True when shared supplies limit it: the count reads "can be sold" instead of "in stock". */
+  shared?: boolean
   unit?: string
   /** How many of this item are already in the cart. */
   inCart?: number
@@ -24,16 +29,17 @@ export function ItemCard({
   name,
   price,
   currency,
-  quantity,
+  available,
   lowStockLevel,
+  shared = false,
   unit,
   inCart = 0,
   onAdd,
   className,
 }: ItemCardProps) {
-  const status = stockStatus(quantity, lowStockLevel)
+  const status = available === null ? null : stockStatus(available, lowStockLevel)
   const outOfStock = status === 'out_of_stock'
-  const atLimit = inCart >= quantity
+  const atLimit = available !== null && inCart >= available
   const readOnly = onAdd === undefined
 
   const body = (
@@ -51,14 +57,16 @@ export function ItemCard({
       </span>
       <Money minor={price} currency={currency} className="text-body-lg font-bold text-ink" />
       <span className="mt-auto flex min-h-6 items-center justify-between gap-2">
-        {status === 'in_stock' ? (
+        {status === null ? (
+          <span className="text-label font-normal text-ink-muted">No stock count</span>
+        ) : status === 'in_stock' ? (
           <span className="text-label font-normal text-ink-muted tabular-nums">
-            {quantity} {unit ?? 'in stock'}
+            {available} {shared ? 'can be sold' : (unit ?? 'in stock')}
           </span>
         ) : (
           <StatusChip
             status={status}
-            label={outOfStock ? 'Out of stock' : `Low: ${quantity} left`}
+            label={outOfStock ? 'Out of stock' : `Low: ${available} left`}
           />
         )}
       </span>

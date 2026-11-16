@@ -22,14 +22,25 @@ export function useItemCosts() {
 }
 
 /** Everything that depends on items: lists, costs, the ledger and the dashboard. */
-function useRefreshStock() {
+export function useRefreshStock() {
   const queryClient = useQueryClient()
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ITEMS_KEY }),
+      queryClient.invalidateQueries({ queryKey: ['supplies'] }),
       queryClient.invalidateQueries({ queryKey: ['stock'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['stock-mode'] }),
     ])
+}
+
+/** Owner only: every change to how an item counts stock. */
+export function useStockModeChanges(itemId: string) {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['stock-mode', itemId],
+    queryFn: () => api.items.stockModeChanges(itemId),
+  })
 }
 
 export function useUpsertItem() {

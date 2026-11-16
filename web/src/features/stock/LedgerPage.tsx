@@ -7,6 +7,7 @@ import { MOVEMENT_TYPES, type MovementType } from '@/domain/stock'
 import { useSessionUser } from '@/features/auth/session'
 import { useItems } from '@/features/items/api'
 import { useStaffList } from '@/features/staff/api'
+import { useSupplies } from '@/features/supplies/api'
 import { addDays, dateKey } from '@/lib/dates'
 import { useMovements } from './api'
 import { MovementList } from './MovementList'
@@ -16,15 +17,19 @@ export default function LedgerPage() {
   const user = useSessionUser()
   const today = dateKey(new Date(), user.timezone ?? 'UTC')
   const items = useItems()
+  const supplies = useSupplies()
   const staff = useStaffList()
-  const [itemId, setItemId] = useState('')
+  // "item:<id>" or "supply:<id>": one filter for both kinds of stock.
+  const [target, setTarget] = useState('')
   const [type, setType] = useState<MovementType | ''>('')
   const [userId, setUserId] = useState('')
   const [from, setFrom] = useState(addDays(today, -6))
   const [to, setTo] = useState(today)
 
+  const [targetKind, targetId] = target.split(':') as [string, string | undefined]
   const movements = useMovements({
-    ...(itemId ? { itemId } : {}),
+    ...(targetKind === 'item' && targetId ? { itemId: targetId } : {}),
+    ...(targetKind === 'supply' && targetId ? { supplyId: targetId } : {}),
     ...(type ? { type } : {}),
     ...(userId ? { userId } : {}),
     ...(from ? { from } : {}),
@@ -32,7 +37,7 @@ export default function LedgerPage() {
   })
 
   const filtered =
-    itemId !== '' || type !== '' || userId !== '' || from !== addDays(today, -6) || to !== today
+    target !== '' || type !== '' || userId !== '' || from !== addDays(today, -6) || to !== today
 
   return (
     <div className="flex flex-col gap-5">
@@ -49,12 +54,16 @@ export default function LedgerPage() {
         className="grid grid-cols-1 gap-3 rounded-card border border-line bg-surface-raised p-4 sm:grid-cols-2 lg:grid-cols-5"
       >
         <SelectField
-          label="Item"
-          value={itemId}
-          onChange={(event) => setItemId(event.target.value)}
+          label="Item or supply"
+          value={target}
+          onChange={(event) => setTarget(event.target.value)}
           options={[
-            { value: '', label: 'All items' },
-            ...(items.data ?? []).map((item) => ({ value: item.id, label: item.name })),
+            { value: '', label: 'Everything' },
+            ...(items.data ?? []).map((item) => ({ value: `item:${item.id}`, label: item.name })),
+            ...(supplies.data ?? []).map((supply) => ({
+              value: `supply:${supply.id}`,
+              label: `Supply: ${supply.name}`,
+            })),
           ]}
         />
         <SelectField
@@ -96,7 +105,7 @@ export default function LedgerPage() {
             <Button
               variant="ghost"
               onClick={() => {
-                setItemId('')
+                setTarget('')
                 setType('')
                 setUserId('')
                 setFrom(addDays(today, -6))

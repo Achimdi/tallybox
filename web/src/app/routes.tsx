@@ -47,6 +47,9 @@ const BusinessSettingsPage = lazy(() => import('@/features/settings/BusinessSett
 const MorePage = lazy(() => import('@/features/settings/MorePage'))
 const HelpPage = lazy(() => import('@/features/settings/HelpPage'))
 const ReportsPage = lazy(() => import('@/features/reports/ReportsPage'))
+const SuppliesPage = lazy(() => import('@/features/supplies/SuppliesPage'))
+const SupplyFormPage = lazy(() => import('@/features/supplies/SupplyFormPage'))
+const SupplyDetailPage = lazy(() => import('@/features/supplies/SupplyDetailPage'))
 
 // Super-admin. Only downloaded after the guard has let the super-admin in.
 const AdminBusinessesPage = lazy(() => import('@/features/admin/AdminBusinessesPage'))
@@ -133,6 +136,11 @@ export const routes: RouteObject[] = [
               { path: 'items/:itemId', Component: ItemDetailPage },
               { path: 'items/:itemId/edit', Component: ItemFormPage },
               { path: 'items/:itemId/adjust', Component: AdjustStockPage },
+              { path: 'supplies', Component: SuppliesPage },
+              { path: 'supplies/new', Component: SupplyFormPage },
+              { path: 'supplies/:supplyId', Component: SupplyDetailPage },
+              { path: 'supplies/:supplyId/edit', Component: SupplyFormPage },
+              { path: 'supplies/:supplyId/adjust', Component: AdjustStockPage },
               { path: 'restock', Component: RestockPage },
               { path: 'ledger', Component: LedgerPage },
               { path: 'staff', Component: StaffListPage },
