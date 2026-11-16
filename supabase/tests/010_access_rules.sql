@@ -98,7 +98,12 @@ select bag_eq(
     -- Phase 2B: shared supplies
     'upsert_supply',
     'archive_supply',
-    'restore_supply'
+    'restore_supply',
+    -- Phase 2C: orders (each checks live who the caller is)
+    'create_order',
+    'void_order',
+    'save_held_order',
+    'discard_held_order'
   ],
   'signed-in users can run only the functions meant for them'
 );
@@ -110,8 +115,8 @@ select bag_eq(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and has_function_privilege('authenticated', p.oid, 'EXECUTE')
   $$,
-  array['my_business_id', 'my_role'],
-  'of the private helpers, signed-in users can run only the two that policies use'
+  array['my_business_id', 'my_role', 'my_today'],
+  'of the private helpers, signed-in users can run only the three that policies use'
 );
 
 select is(

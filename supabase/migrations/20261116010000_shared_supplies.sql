@@ -579,13 +579,13 @@ begin
   )
   returning id into v_restock_id;
 
-  -- Lock rows in a fixed order (supplies, then items, each by id), so two
-  -- deliveries at once cannot deadlock.
+  -- Lock rows in one fixed order everywhere (items, then supplies, each by id),
+  -- so deliveries and orders at the same moment cannot deadlock.
   for v_line in
     select l.item_id, l.supply_id, l.quantity, l.unit_cost
     from jsonb_to_recordset(p_lines)
       as l (item_id uuid, supply_id uuid, quantity integer, unit_cost bigint)
-    order by (l.supply_id is null), coalesce(l.supply_id, l.item_id)
+    order by (l.item_id is null), coalesce(l.item_id, l.supply_id)
   loop
     if v_line.supply_id is not null then
       select * into v_supply
