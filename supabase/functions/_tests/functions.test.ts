@@ -6,7 +6,9 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import type { Actor, AdminClient, Deps, LogEntry } from '../_shared/handler.ts'
 import { handler as checkBusinessCode } from '../check-business-code/handler.ts'
+import { handler as createOwnerResetLink } from '../create-owner-reset-link/handler.ts'
 import { handler as createStaff } from '../create-staff/handler.ts'
+import { handler as extendBusinessAccess } from '../extend-business-access/handler.ts'
 import { handler as generateActivationCode } from '../generate-activation-code/handler.ts'
 import { handler as registerBusiness } from '../register-business/handler.ts'
 import { handler as revokeActivationCode } from '../revoke-activation-code/handler.ts'
@@ -22,6 +24,8 @@ interface World {
   rpcArgs: Record<string, Record<string, unknown>>
   createdUsers: { email: string; password: string; app_metadata: Record<string, unknown> }[]
   deletedUsers: string[]
+  /** Recovery links asked for: who for, and where the link leads back to. */
+  recoveryLinks: { email: string; redirectTo: string }[]
   logs: LogEntry[]
 }
 
@@ -29,6 +33,7 @@ interface WorldOptions {
   actor?: Actor | null
   rpc?: Record<string, RpcStub>
   createUserError?: string
+  recoveryLinkError?: string
   turnstileSuccess?: boolean
   env?: Record<string, string>
 }
@@ -48,6 +53,7 @@ function makeWorld(options: WorldOptions = {}): World {
     rpcArgs: {},
     createdUsers: [],
     deletedUsers: [],
+    recoveryLinks: [],
     logs: [],
     deps: undefined as unknown as Deps,
   }
@@ -67,8 +73,11 @@ function makeWorld(options: WorldOptions = {}): World {
           code: 'TB-7K4M-X9QD',
           owner_email: 'ada@shop.test',
           expires_at: '2026-11-18T00:00:00Z',
+          access_days: 30,
         },
       ]),
+    admin_extend_access: () => ok('2027-02-14T00:00:00Z'),
+    admin_owner_email: () => ok('ada@shop.test'),
     admin_revoke_activation_code: () => ok(null),
     admin_set_business_status: () => ok(null),
     ...options.rpc,
@@ -93,6 +102,17 @@ function makeWorld(options: WorldOptions = {}): World {
       world.calls.push('deleteUser')
       world.deletedUsers.push(userId)
       return Promise.resolve({ ok: true })
+    },
+    generateRecoveryLink(email, redirectTo) {
+      world.calls.push('generateRecoveryLink')
+      if (options.recoveryLinkError) {
+        return Promise.resolve({ link: null, errorCode: options.recoveryLinkError })
+      }
+      world.recoveryLinks.push({ email, redirectTo })
+      return Promise.resolve({
+        link: 'https://project.supabase.co/auth/v1/verify?token=SECRET-TOKEN&type=recovery',
+        errorCode: null,
+      })
     },
   }
 
@@ -453,13 +473,16 @@ Deno.test('the super-admin generates a code and sees it once', async () => {
       code: 'TB-7K4M-X9QD',
       ownerEmail: 'ada@shop.test',
       expiresAt: '2026-11-18T00:00:00Z',
+      accessDays: 30,
     },
   })
+  // Left out, the code is redeemable for 7 days and gives 30 days of access.
   assertEquals(world.rpcArgs.admin_generate_activation_code, {
     p_actor_id: 'admin-1',
     p_owner_email: 'ada@shop.test',
     p_note: "Ada's pharmacy",
     p_expires_in_days: 7,
+    p_access_days: 30,
   })
   assert(!JSON.stringify(world.logs).includes('TB-7K4M-X9QD'))
 })
@@ -530,4 +553,127 @@ Deno.test('revoking a code passes on what the database says', async () => {
 
   const badId = makeWorld({ actor: ADMIN })
   assertEquals((await revokeActivationCode(post({ codeId: 'nope' }), badId.deps)).status, 400)
+})
+
+Deno.test('a code carries the access length the super-admin chose, or none at all', async () => {
+  const year = makeWorld({ actor: ADMIN })
+  await generateActivationCode(post({ ownerEmail: 'ada@shop.test', accessDays: 365 }), year.deps)
+  assertEquals(year.rpcArgs.admin_generate_activation_code?.p_access_days, 365)
+
+  // Null means open-ended, and must reach the database as null, not as the default.
+  const open = makeWorld({ actor: ADMIN })
+  await generateActivationCode(post({ ownerEmail: 'ada@shop.test', accessDays: null }), open.deps)
+  assertEquals(open.rpcArgs.admin_generate_activation_code?.p_access_days, null)
+
+  for (const accessDays of [0, 1.5, 3651, '30']) {
+    const bad = makeWorld({ actor: ADMIN })
+    const response = await generateActivationCode(
+      post({ ownerEmail: 'ada@shop.test', accessDays }),
+      bad.deps,
+    )
+    assertEquals(response.status, 400)
+    assert(!bad.calls.includes('rpc:admin_generate_activation_code'))
+  }
+})
+
+Deno.test('the super-admin extends access by days, or makes it open-ended', async () => {
+  const businessId = '7d3f6f0e-58a1-4c1e-9d0a-1f2b3c4d5e6f'
+  const world = makeWorld({ actor: ADMIN })
+  const response = await extendBusinessAccess(post({ businessId, days: 90 }), world.deps)
+  assertEquals(await response.json(), { data: { accessEndsAt: '2027-02-14T00:00:00Z' } })
+  assertEquals(world.rpcArgs.admin_extend_access, {
+    p_actor_id: 'admin-1',
+    p_business_id: businessId,
+    p_days: 90,
+  })
+
+  const open = makeWorld({ actor: ADMIN, rpc: { admin_extend_access: () => ok(null) } })
+  const openEnded = await extendBusinessAccess(post({ businessId, days: null }), open.deps)
+  assertEquals(await openEnded.json(), { data: { accessEndsAt: null } })
+  assertEquals(open.rpcArgs.admin_extend_access?.p_days, null)
+
+  // Days must be given (a number or null), whole and in range.
+  for (const body of [{ businessId }, { businessId, days: 0 }, { businessId, days: 4000 }]) {
+    const bad = makeWorld({ actor: ADMIN })
+    assertEquals((await extendBusinessAccess(post(body), bad.deps)).status, 400)
+    assert(!bad.calls.includes('rpc:admin_extend_access'))
+  }
+
+  const signedOut = makeWorld({ actor: null })
+  assertEquals(
+    (await extendBusinessAccess(post({ businessId, days: 30 }), signedOut.deps)).status,
+    401,
+  )
+  const owner = makeWorld({ actor: OWNER, rpc: { admin_extend_access: () => refuse('not_found') } })
+  assertEquals((await extendBusinessAccess(post({ businessId, days: 30 }), owner.deps)).status, 404)
+})
+
+Deno.test(
+  'the super-admin gets a one-time reset link for an owner, and it is never logged',
+  async () => {
+    const businessId = '7d3f6f0e-58a1-4c1e-9d0a-1f2b3c4d5e6f'
+    const world = makeWorld({
+      actor: ADMIN,
+      env: { APP_ORIGINS: 'https://tallybox.pages.dev,https://*.tallybox.pages.dev' },
+    })
+    const response = await createOwnerResetLink(
+      post({ businessId }, { origin: 'https://tallybox.pages.dev' }),
+      world.deps,
+    )
+    assertEquals(response.status, 200)
+    const { data } = (await response.json()) as {
+      data: { url: string; ownerEmail: string; expiresAt: string }
+    }
+    assertEquals(
+      data.url,
+      'https://project.supabase.co/auth/v1/verify?token=SECRET-TOKEN&type=recovery',
+    )
+    assertEquals(data.ownerEmail, 'ada@shop.test')
+    assert(new Date(data.expiresAt).getTime() > Date.now())
+
+    // The link leads back to the app's own reset page, on the address the request came from.
+    assertEquals(world.recoveryLinks, [
+      { email: 'ada@shop.test', redirectTo: 'https://tallybox.pages.dev/reset-password' },
+    ])
+    assertEquals(world.rpcArgs.admin_owner_email, {
+      p_actor_id: 'admin-1',
+      p_business_id: businessId,
+    })
+    // Neither the link nor the email reaches the logs.
+    assert(!JSON.stringify(world.logs).includes('SECRET-TOKEN'))
+    assert(!JSON.stringify(world.logs).includes('ada@shop.test'))
+  },
+)
+
+Deno.test('nobody but the super-admin gets a reset link, and never from another site', async () => {
+  const businessId = '7d3f6f0e-58a1-4c1e-9d0a-1f2b3c4d5e6f'
+
+  // The database says "not found" to anyone who is not the super-admin: no link is made.
+  const owner = makeWorld({ actor: OWNER, rpc: { admin_owner_email: () => refuse('not_found') } })
+  assertEquals((await createOwnerResetLink(post({ businessId }), owner.deps)).status, 404)
+  assert(!owner.calls.includes('generateRecoveryLink'))
+
+  const signedOut = makeWorld({ actor: null })
+  assertEquals((await createOwnerResetLink(post({ businessId }), signedOut.deps)).status, 401)
+
+  // A request from a site that is not the app is refused before anything happens.
+  const elsewhere = makeWorld({
+    actor: ADMIN,
+    env: { APP_ORIGINS: 'https://tallybox.pages.dev' },
+  })
+  const response = await createOwnerResetLink(
+    post({ businessId }, { origin: 'https://evil.example' }),
+    elsewhere.deps,
+  )
+  assertEquals(response.status, 403)
+  assertEquals(elsewhere.calls, [])
+
+  // Too many links in an hour: refused.
+  const limited = makeWorld({ actor: ADMIN, rpc: { rate_limit_hit: () => ok(false) } })
+  assertEquals((await createOwnerResetLink(post({ businessId }), limited.deps)).status, 429)
+  assert(!limited.calls.includes('generateRecoveryLink'))
+
+  // If Supabase Auth cannot make the link, say so safely.
+  const broken = makeWorld({ actor: ADMIN, recoveryLinkError: 'user_not_found' })
+  assertEquals((await createOwnerResetLink(post({ businessId }), broken.deps)).status, 500)
 })

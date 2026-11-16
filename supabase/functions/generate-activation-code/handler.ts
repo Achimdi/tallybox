@@ -1,5 +1,6 @@
 // The super-admin creates a single-use activation code for one owner email.
-// The code is returned once, here, and only its hash is kept.
+// The code is returned once, here, and only its hash is kept. It carries the
+// access length the business gets when it registers (null means open-ended).
 
 import { z } from '../_shared/deps.ts'
 import { defineFunction } from '../_shared/handler.ts'
@@ -16,6 +17,7 @@ const schema = z.object({
     .min(LIMITS.activationCodeDaysMin)
     .max(LIMITS.activationCodeDaysMax)
     .default(7),
+  accessDays: fields.accessDays.default(LIMITS.accessDaysDefault),
 })
 
 interface GeneratedCode {
@@ -23,6 +25,7 @@ interface GeneratedCode {
   code: string
   owner_email: string
   expires_at: string
+  access_days: number | null
 }
 
 export const handler = defineFunction({
@@ -40,10 +43,17 @@ export const handler = defineFunction({
       p_owner_email: context.body.ownerEmail,
       p_note: context.body.note,
       p_expires_in_days: context.body.expiresInDays,
+      p_access_days: context.body.accessDays,
     })
     const row = rows[0]
     if (!row) throw new HttpError('server')
 
-    return { id: row.id, code: row.code, ownerEmail: row.owner_email, expiresAt: row.expires_at }
+    return {
+      id: row.id,
+      code: row.code,
+      ownerEmail: row.owner_email,
+      expiresAt: row.expires_at,
+      accessDays: row.access_days,
+    }
   },
 })

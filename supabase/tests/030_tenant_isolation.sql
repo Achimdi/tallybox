@@ -123,7 +123,7 @@ select throws_ok($$ select public.admin_platform_counts() $$, 'P0001', 'not_foun
 select is(
   public.get_session_state() - 'user_id',
   '{"kind":"member","role":"owner","display_name":"Owner A","username":null,"active":true,"access":"ok",
-    "business":{"id":"b0000000-0000-0000-0000-00000000000a","name":"Shop A","business_code":"shop-a","currency_code":"NGN","timezone":"UTC"}}'::jsonb,
+    "business":{"id":"b0000000-0000-0000-0000-00000000000a","name":"Shop A","business_code":"shop-a","currency_code":"NGN","timezone":"UTC","access_ends_at":null}}'::jsonb,
   'owner A gets their own session state'
 );
 
@@ -243,7 +243,7 @@ select results_eq(
 );
 select is(
   public.admin_platform_counts(),
-  '{"businesses":2,"suspended":0,"staff":3,"unused_codes":0}'::jsonb,
+  '{"businesses":2,"suspended":0,"ending_soon":0,"access_ended":0,"staff":3,"unused_codes":0}'::jsonb,
   'the super-admin gets simple platform counts'
 );
 

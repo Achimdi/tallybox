@@ -142,4 +142,8 @@ export const LIMITS = {
   emailMax: 254,
   activationCodeDaysMin: 1,
   activationCodeDaysMax: 90,
+  /** Access periods, in days. The same limits as web/src/domain/access.ts. */
+  accessDaysMin: 1,
+  accessDaysMax: 3650,
+  accessDaysDefault: 30,
 } as const

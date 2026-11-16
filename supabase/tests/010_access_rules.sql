@@ -86,6 +86,7 @@ select bag_eq(
   array[
     'get_session_state',
     'admin_list_businesses',
+    'admin_get_business',
     'admin_list_activation_codes',
     'admin_platform_counts',
     -- Phase 2: items and stock (each checks live that the caller is an owner)

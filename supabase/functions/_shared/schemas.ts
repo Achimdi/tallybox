@@ -53,3 +53,11 @@ export function optionalText(max: number) {
 export const turnstileToken = z.string().min(1).max(2048)
 
 export const uuid = z.uuid()
+
+/** An access length in days. Null means open-ended. */
+export const accessDays = z
+  .number()
+  .int()
+  .min(LIMITS.accessDaysMin)
+  .max(LIMITS.accessDaysMax)
+  .nullable()

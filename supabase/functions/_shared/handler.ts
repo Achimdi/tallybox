@@ -32,6 +32,14 @@ export interface AdminClient {
     app_metadata: Record<string, unknown>
   }): Promise<{ userId: string | null; errorCode: string | null }>
   deleteUser(userId: string): Promise<{ ok: boolean }>
+  /**
+   * A one-time link that lets the user choose a new password. No email is sent:
+   * the super-admin passes the link on by hand (v1 depends on no email).
+   */
+  generateRecoveryLink(
+    email: string,
+    redirectTo: string,
+  ): Promise<{ link: string | null; errorCode: string | null }>
 }
 
 /** Who is calling, taken from their verified token. */
@@ -63,6 +71,8 @@ export interface Context<Body> {
   admin: AdminClient
   ip: string
   deviceId: string | null
+  /** The app's own address: the caller's allowed origin, or the first configured one. */
+  appOrigin: string
   deps: Deps
   /** Counts one attempt and stops with `rate_limited` when over the limit. */
   limit(scope: string, who: string, max: number, windowSeconds: number): Promise<void>
@@ -104,6 +114,15 @@ function createRealAdmin(): AdminClient {
     async deleteUser(userId) {
       const { error } = await client.auth.admin.deleteUser(userId)
       return { ok: !error }
+    },
+    async generateRecoveryLink(email, redirectTo) {
+      const { data, error } = await client.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: { redirectTo },
+      })
+      if (error) return { link: null, errorCode: error.code ?? 'unknown' }
+      return { link: data.properties?.action_link ?? null, errorCode: null }
     },
   }
 }
@@ -229,6 +248,9 @@ export function defineFunction<Schema extends z.ZodType>(
         admin: deps.admin,
         ip: clientIp(request),
         deviceId: request.headers.get('x-device-id')?.slice(0, 64) || null,
+        // The origin was checked above; without one (tests, scripts) use the first real address.
+        appOrigin:
+          origin ?? allowedOrigins.find((pattern) => !pattern.includes('*')) ?? allowedOrigins[0]!,
         deps,
         async limit(scope, who, max, windowSeconds) {
           const key = await sha256Hex(`${scope}:${who}`)
