@@ -59,11 +59,9 @@ test('staff login: signs demo staff in, and turns away a turned-off account', as
 })
 
 test('blocked businesses get their own screens', async ({ page }) => {
-  await signInOwnerPortal(page, 'greenleaf@demo.tallybox.test')
+  await signInOwnerPortal(page, 'harbour@demo.tallybox.test')
   await expect(page).toHaveURL('/suspended')
-  await expect(
-    page.getByRole('heading', { name: 'Green Leaf Restaurant is suspended' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Harbour Bakery is suspended' })).toBeVisible()
 
   await signInOwnerPortal(page, 'dailyneeds@demo.tallybox.test')
   await expect(page).toHaveURL('/access-ended')
