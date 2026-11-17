@@ -234,7 +234,8 @@ export default function RegisterPage() {
           type="tel"
           inputMode="tel"
           autoComplete="tel"
-          hint="Optional. Shown on receipts."
+          optional
+          hint="Shown on receipts."
           error={errors.phone?.message}
           {...register('phone')}
         />

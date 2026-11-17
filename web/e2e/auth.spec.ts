@@ -77,7 +77,7 @@ test('activation code flow, end to end', async ({ page }) => {
   await page.getByRole('link', { name: 'Codes' }).first().click()
   await page.getByRole('link', { name: 'Generate code' }).first().click()
   await page.getByLabel(/^Owner's email/).fill('fresh@client.test')
-  await page.getByLabel('Note').fill('Fresh Foods')
+  await page.getByLabel(/^Note/).fill('Fresh Foods')
   await page.getByRole('radio', { name: '90 days' }).click()
   await page.getByRole('button', { name: 'Generate code' }).click()
   const code =

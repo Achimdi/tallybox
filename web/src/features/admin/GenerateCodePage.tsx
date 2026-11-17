@@ -172,7 +172,8 @@ export default function GenerateCodePage() {
         <TextField
           label="Note"
           autoComplete="off"
-          hint="Optional. For example the client's name."
+          optional
+          hint="For example the client's name."
           error={errors.note?.message}
           {...register('note')}
         />

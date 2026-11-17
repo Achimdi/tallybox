@@ -40,7 +40,7 @@ describe('new order', () => {
     expect(confirm).toBeDisabled()
 
     await userEvent.click(within(cart).getByRole('radio', { name: 'Bank transfer' }))
-    await userEvent.type(within(cart).getByLabelText('Transfer reference'), 'TRF-555')
+    await userEvent.type(within(cart).getByLabelText(/^Transfer reference/), 'TRF-555')
     expect(confirm).toBeDisabled()
     await userEvent.click(within(cart).getByRole('checkbox', { name: /Payment received/ }))
     expect(confirm).toBeEnabled()

@@ -10,6 +10,8 @@ export interface TextFieldProps extends ComponentProps<'input'> {
   error?: string | undefined
   /** Something inside the right edge of the field, for example a show/hide button. */
   trailing?: ReactNode
+  /** Marks the label "(optional)", the counterpart of "(required)". */
+  optional?: boolean
 }
 
 /**
@@ -24,6 +26,7 @@ export function TextField({
   id,
   className,
   required,
+  optional = false,
   ...rest
 }: TextFieldProps) {
   const generatedId = useId()
@@ -37,6 +40,9 @@ export function TextField({
       <label htmlFor={inputId} className="text-label text-ink">
         {label}
         {required ? <span className="font-normal text-ink-muted"> (required)</span> : null}
+        {optional && !required ? (
+          <span className="font-normal text-ink-muted"> (optional)</span>
+        ) : null}
       </label>
       <div className="relative">
         <input

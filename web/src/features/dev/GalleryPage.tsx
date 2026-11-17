@@ -212,6 +212,13 @@ export default function GalleryPage() {
             error={errors.price?.message}
             {...register('price')}
           />
+          <TextField
+            label="Unit name"
+            optional
+            autoComplete="off"
+            placeholder="pack, bottle, piece…"
+            hint="A word for one of this item, like pack or bottle. Not a number."
+          />
           <TextField label="Disabled field" disabled defaultValue="Cannot change this" />
           <div>
             <Button type="submit">Check form</Button>

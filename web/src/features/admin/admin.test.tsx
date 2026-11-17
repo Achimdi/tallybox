@@ -151,7 +151,7 @@ describe('developer portal: activation codes', () => {
   it('generates a code with a redeem window and access length, shown once', async () => {
     const { test } = await openAdmin('/admin/codes/new')
     await userEvent.type(await screen.findByLabelText(/^Owner's email/), 'Fresh@Client.test')
-    await userEvent.type(screen.getByLabelText('Note'), 'Fresh Foods')
+    await userEvent.type(screen.getByLabelText(/^Note/), 'Fresh Foods')
     await userEvent.click(screen.getByRole('radio', { name: '180 days' }))
     await userEvent.click(screen.getByRole('button', { name: 'Generate code' }))
 

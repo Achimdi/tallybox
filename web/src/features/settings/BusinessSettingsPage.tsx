@@ -219,7 +219,8 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
       <TextField
         label="Address"
         autoComplete="street-address"
-        hint="Optional. Shown on receipts."
+        optional
+        hint="Shown on receipts."
         error={errors.address?.message}
         {...register('address')}
       />
@@ -227,7 +228,8 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
         label="Phone"
         type="tel"
         autoComplete="tel"
-        hint="Optional. Shown on receipts."
+        optional
+        hint="Shown on receipts."
         error={errors.phone?.message}
         {...register('phone')}
       />
@@ -235,7 +237,8 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
         label="Receipt message"
         autoComplete="off"
         placeholder="Thank you for shopping with us"
-        hint="Optional. Printed at the bottom of every receipt."
+        optional
+        hint="Printed at the bottom of every receipt."
         error={errors.receiptFooter?.message}
         {...register('receiptFooter')}
       />

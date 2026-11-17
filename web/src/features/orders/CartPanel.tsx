@@ -292,7 +292,8 @@ export function CartPanel({ items, supplies, onDone }: CartPanelProps) {
           label={referenceLabel}
           autoComplete="off"
           maxLength={ORDER_LIMITS.paymentReferenceMax}
-          hint="Optional. Helps match the payment later."
+          optional
+          hint="Helps match the payment later."
           value={cart.paymentReference}
           onChange={(event) => setFields({ paymentReference: event.target.value })}
         />

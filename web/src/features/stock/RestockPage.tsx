@@ -230,7 +230,7 @@ export default function RestockPage() {
                         label={`Unit cost (${currency})`}
                         inputMode="decimal"
                         autoComplete="off"
-                        hint="Optional"
+                        optional
                         value={line.unitCost}
                         onChange={(event) => update(line.key, { unitCost: event.target.value })}
                         error={showErrors ? costError(line) : undefined}
@@ -257,7 +257,8 @@ export default function RestockPage() {
           label="Note"
           autoComplete="off"
           maxLength={STOCK_LIMITS.noteMax}
-          hint="Optional. For example the invoice number."
+          optional
+          hint="For example the invoice number."
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
