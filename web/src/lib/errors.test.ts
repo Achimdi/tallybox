@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AppError, toAppError, userMessage } from './errors'
+import { AppError, fromDatabaseError, toAppError, userMessage } from './errors'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -40,6 +40,23 @@ describe('toAppError', () => {
     for (const value of [null, undefined, 'text', 42, {}, []]) {
       expect(toAppError(value).code).toBe('unknown')
     }
+  })
+})
+
+describe('fromDatabaseError', () => {
+  it('reads our own refusal codes, and nothing else, from P0001', () => {
+    expect(fromDatabaseError({ code: 'P0001', message: 'insufficient_stock' }).code).toBe(
+      'insufficient_stock',
+    )
+    expect(fromDatabaseError({ code: 'P0001', message: 'some raw text' }).code).toBe('server')
+  })
+
+  it('maps refusals, expired sign-ins and unreadable values', () => {
+    expect(fromDatabaseError({ code: '42501' }).code).toBe('permission_denied')
+    expect(fromDatabaseError({ code: 'PGRST303' }).code).toBe('unauthenticated')
+    expect(fromDatabaseError({ code: '22P02' }).code).toBe('validation')
+    expect(fromDatabaseError({ code: '22003' }).code).toBe('validation')
+    expect(fromDatabaseError({ code: '23505' }).code).toBe('server')
   })
 })
 

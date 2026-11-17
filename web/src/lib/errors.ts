@@ -227,6 +227,11 @@ export function fromDatabaseError(error: { code?: string; message?: string }): A
   }
   // 42501: the database refused. PGRST301/PGRST303: the token is missing or expired.
   if (error.code === '42501') return new AppError('permission_denied', { cause: error })
+  // 22P02/22003: a value sent couldn't be read as its type (10.5 for a whole
+  // number, a word for an id) or is far too big. That is bad input, not a fault.
+  if (error.code === '22P02' || error.code === '22003') {
+    return new AppError('validation', { cause: error })
+  }
   if (error.code === 'PGRST301' || error.code === 'PGRST303') {
     return new AppError('unauthenticated', { cause: error })
   }
