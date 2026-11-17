@@ -233,6 +233,37 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     schema: Schema,
   ) => callFunction(client, options, name, body, schema)
 
+  /**
+   * Who this browser's sign-in says it is, read locally (no network). The
+   * database's own rules are the real check; this only lets the app return the
+   * same error codes as the demo: "unauthenticated" when nobody is signed in,
+   * "permission_denied" for the wrong role.
+   */
+  async function requireRole(roles: readonly ('owner' | 'staff' | 'super_admin')[]) {
+    const { data } = await client.auth.getSession()
+    if (!data.session) throw new AppError('unauthenticated')
+    const role = (data.session.user.app_metadata as { role?: unknown } | undefined)?.role
+    if (typeof role !== 'string' || !roles.includes(role as 'owner')) {
+      throw new AppError('permission_denied')
+    }
+  }
+
+  /** The developer portal looks like it doesn't exist to anyone else: "not found". */
+  async function asDeveloper<Result>(action: () => Promise<Result>): Promise<Result> {
+    try {
+      await requireRole(['super_admin'])
+      return await action()
+    } catch (thrown) {
+      if (
+        thrown instanceof AppError &&
+        (thrown.code === 'unauthenticated' || thrown.code === 'permission_denied')
+      ) {
+        throw new AppError('not_found', { cause: thrown })
+      }
+      throw thrown
+    }
+  }
+
   /** Signs out on this device only. Never throws. */
   async function signOutHere() {
     try {
@@ -356,6 +387,7 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
   }
 
   async function readStaff(): Promise<StaffMember[]> {
+    await requireRole(['owner'])
     const { data, error } = await client
       .from('profiles')
       .select('id, display_name, username, active, created_at, last_login_at')
@@ -386,121 +418,139 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
 
   const admin: AdminApi = {
     async listBusinesses() {
-      const rows = await rpc('admin_list_businesses', undefined as never, z.array(businessRow))
-      return rows.map(toAdminBusiness)
+      return asDeveloper(async () => {
+        const rows = await rpc('admin_list_businesses', undefined as never, z.array(businessRow))
+        return rows.map(toAdminBusiness)
+      })
     },
 
     async getBusiness(businessId) {
-      const row = await rpc(
-        'admin_get_business',
-        { p_business_id: businessId },
-        businessRow.extend({
-          active_staff_count: z.coerce.number(),
-          order_count: z.coerce.number(),
-          order_count_today: z.coerce.number(),
-          phone: z.string().nullable(),
-          timezone: z.string(),
-          currency_code: z.string(),
-        }),
-      )
-      const detail: AdminBusinessDetail = {
-        ...toAdminBusiness(row),
-        activeStaffCount: row.active_staff_count,
-        orderCount: row.order_count,
-        orderCountToday: row.order_count_today,
-        phone: row.phone,
-        timezone: row.timezone,
-        currencyCode: row.currency_code,
-      }
-      return detail
+      return asDeveloper(async () => {
+        const row = await rpc(
+          'admin_get_business',
+          { p_business_id: businessId },
+          businessRow.extend({
+            active_staff_count: z.coerce.number(),
+            order_count: z.coerce.number(),
+            order_count_today: z.coerce.number(),
+            phone: z.string().nullable(),
+            timezone: z.string(),
+            currency_code: z.string(),
+          }),
+        )
+        const detail: AdminBusinessDetail = {
+          ...toAdminBusiness(row),
+          activeStaffCount: row.active_staff_count,
+          orderCount: row.order_count,
+          orderCountToday: row.order_count_today,
+          phone: row.phone,
+          timezone: row.timezone,
+          currencyCode: row.currency_code,
+        }
+        return detail
+      })
     },
 
     async platformCounts() {
-      const counts = await rpc(
-        'admin_platform_counts',
-        undefined as never,
-        z.object({
-          businesses: z.number(),
-          suspended: z.number(),
-          ending_soon: z.number(),
-          access_ended: z.number(),
-          staff: z.number(),
-          unused_codes: z.number(),
-        }),
-      )
-      return {
-        businesses: counts.businesses,
-        suspended: counts.suspended,
-        endingSoon: counts.ending_soon,
-        accessEnded: counts.access_ended,
-        staff: counts.staff,
-        unusedCodes: counts.unused_codes,
-      }
+      return asDeveloper(async () => {
+        const counts = await rpc(
+          'admin_platform_counts',
+          undefined as never,
+          z.object({
+            businesses: z.number(),
+            suspended: z.number(),
+            ending_soon: z.number(),
+            access_ended: z.number(),
+            staff: z.number(),
+            unused_codes: z.number(),
+          }),
+        )
+        return {
+          businesses: counts.businesses,
+          suspended: counts.suspended,
+          endingSoon: counts.ending_soon,
+          accessEnded: counts.access_ended,
+          staff: counts.staff,
+          unusedCodes: counts.unused_codes,
+        }
+      })
     },
 
     async setBusinessStatus({ businessId, status, reason }) {
-      await fn(
-        'set-business-status',
-        { businessId, status, reason: reason ?? null },
-        z.object({ status: z.string() }),
-      )
+      return asDeveloper(async () => {
+        await fn(
+          'set-business-status',
+          { businessId, status, reason: reason ?? null },
+          z.object({ status: z.string() }),
+        )
+      })
     },
 
     async extendAccess({ businessId, days }) {
-      return fn(
-        'extend-business-access',
-        { businessId, days },
-        z.object({ accessEndsAt: z.string().nullable() }),
-      )
+      return asDeveloper(async () => {
+        return fn(
+          'extend-business-access',
+          { businessId, days },
+          z.object({ accessEndsAt: z.string().nullable() }),
+        )
+      })
     },
 
     async createOwnerResetLink(businessId) {
-      const link = await fn(
-        'create-owner-reset-link',
-        { businessId },
-        z.object({ url: z.string(), ownerEmail: z.string(), expiresAt: z.string() }),
-      )
-      return { ...link, simulated: false }
+      return asDeveloper(async () => {
+        const link = await fn(
+          'create-owner-reset-link',
+          { businessId },
+          z.object({ url: z.string(), ownerEmail: z.string(), expiresAt: z.string() }),
+        )
+        return { ...link, simulated: false }
+      })
     },
 
     async listActivationCodes() {
-      const rows = await rpc('admin_list_activation_codes', undefined as never, z.array(codeRow))
-      return rows.map((row): AdminActivationCode => ({
-        id: row.id,
-        ownerEmail: row.owner_email,
-        note: row.note,
-        status: row.status,
-        createdAt: row.created_at,
-        redeemBy: row.expires_at,
-        accessDays: row.access_days,
-        usedAt: row.used_at,
-        usedByBusinessName: row.used_by_business_name,
-      }))
+      return asDeveloper(async () => {
+        const rows = await rpc('admin_list_activation_codes', undefined as never, z.array(codeRow))
+        return rows.map((row): AdminActivationCode => ({
+          id: row.id,
+          ownerEmail: row.owner_email,
+          note: row.note,
+          status: row.status,
+          createdAt: row.created_at,
+          redeemBy: row.expires_at,
+          accessDays: row.access_days,
+          usedAt: row.used_at,
+          usedByBusinessName: row.used_by_business_name,
+        }))
+      })
     },
 
     async generateActivationCode({ ownerEmail, note, redeemDays, accessDays }) {
-      const code = await fn(
-        'generate-activation-code',
-        { ownerEmail, note, expiresInDays: redeemDays, accessDays },
-        z.object({
-          id: z.string(),
-          code: z.string(),
-          ownerEmail: z.string(),
-          expiresAt: z.string(),
-          accessDays: z.number().nullable(),
-        }),
-      )
-      return {
-        id: code.id,
-        code: code.code,
-        ownerEmail: code.ownerEmail,
-        redeemBy: code.expiresAt,
-        accessDays: code.accessDays,
-      }
+      return asDeveloper(async () => {
+        const code = await fn(
+          'generate-activation-code',
+          { ownerEmail, note, expiresInDays: redeemDays, accessDays },
+          z.object({
+            id: z.string(),
+            code: z.string(),
+            ownerEmail: z.string(),
+            expiresAt: z.string(),
+            accessDays: z.number().nullable(),
+          }),
+        )
+        return {
+          id: code.id,
+          code: code.code,
+          ownerEmail: code.ownerEmail,
+          redeemBy: code.expiresAt,
+          accessDays: code.accessDays,
+        }
+      })
     },
 
     async revokeActivationCode(codeId) {
-      await fn('revoke-activation-code', { codeId }, z.unknown())
+      return asDeveloper(async () => {
+        await fn('revoke-activation-code', { codeId }, z.unknown())
+      })
     },
   }
 
