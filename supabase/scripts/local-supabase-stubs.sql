@@ -76,3 +76,15 @@ alter default privileges for role postgres in schema public
   grant all on functions to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
+
+-- New hosted projects also come with this function, behind Supabase's
+-- "ensure_rls" event trigger. Created before our migrations, it starts out
+-- executable by every role, as on the real project (see 20261117020000).
+create function public.rls_auto_enable() returns event_trigger
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+begin
+end;
+$$;
