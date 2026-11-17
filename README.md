@@ -1,12 +1,9 @@
 # Tallybox
 
-Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, hosted free on Cloudflare Pages. Supabase (database, sign-in, server functions) is connected in Phase 2.
+Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, hosted free on Cloudflare (a Worker serving the built app, see `wrangler.jsonc`), with Supabase for the database, sign-in and server functions.
 
-- **The full brief:** [docs/Tallybox-Master-Build-Prompt.md](docs/Tallybox-Master-Build-Prompt.md)
-- **Every screen and flow:** [docs/ux-map.md](docs/ux-map.md)
 - **Working rules for Claude Code:** [CLAUDE.md](CLAUDE.md)
-- **Free-plan limits and upgrade triggers:** [docs/free-plan-limits.md](docs/free-plan-limits.md)
-- **Access periods and billing seams:** [docs/billing-plan.md](docs/billing-plan.md)
+- **Planning documents** (the brief, the UX map, plan limits, setup guides and the security review) are kept privately by the developer, in a `docs/` folder that is not part of this repository.
 
 ## Status and plan
 
@@ -71,7 +68,6 @@ web/                 The React app
   public/brand/      Placeholder logo and icons
   public/_headers    Security headers for Cloudflare Pages
   e2e/               End-to-end tests
-docs/                The brief, the UX map and supporting notes
 .github/workflows/   CI
 ```
 
@@ -81,7 +77,7 @@ Phase 1 needs none. They are set up only when needed, one step at a time, and yo
 
 - **GitHub** (already set up) for the code and CI. Push, then check the CI jobs go green in the repo's **Actions** tab.
 - **Cloudflare Pages**, optional in Phase 1, to share a clearly labelled DEMO link (steps below).
-- **Supabase** (dev project now, prod in Phase 3): follow [docs/phase-2-setup.md](docs/phase-2-setup.md). It uses Cloudflare's Turnstile test keys on dev; a real Turnstile widget is set up before going live.
+- **Supabase**: a `tallybox-dev` project for development and testing (Cloudflare's Turnstile test keys) and a `tallybox-prod` project for real clients (a real Turnstile widget). The step-by-step setup guides are in the developer's private notes.
 
 ### Cloudflare Pages (optional demo link)
 

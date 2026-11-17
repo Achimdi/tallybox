@@ -32,3 +32,6 @@ blob-report/
 .DS_Store
 Thumbs.db
 *.log
+
+# The developer's private planning documents: kept on this computer only.
+docs/
