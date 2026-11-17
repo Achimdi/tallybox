@@ -194,7 +194,7 @@ export function createDrinksSeed(input: DrinksSeedInput): DrinksSeed {
     })
   }
 
-  // The brief's example: 10 Coke + 10 apple juice + 10 Fanta use 30 bottles.
+  // For example: 10 Coke + 10 apple juice + 10 Fanta use 30 bottles.
   sell(nowMs - DAY_MS - 3 * 3_600_000, staff, 'cash', [
     [coke, 10],
     [apple, 10],

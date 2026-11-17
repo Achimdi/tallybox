@@ -33,5 +33,6 @@ blob-report/
 Thumbs.db
 *.log
 
-# The developer's private planning documents: kept on this computer only.
+# Local notes, never committed.
 docs/
+CLAUDE.md

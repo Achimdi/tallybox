@@ -1,5 +1,5 @@
 /**
- * The one front-end seam for plan limits. See docs/billing-plan.md.
+ * The one front-end seam for plan limits.
  *
  * Every "can this business use this feature or add more?" question goes through
  * this hook. In v1 there are no subscriptions and no limits, so the answer is

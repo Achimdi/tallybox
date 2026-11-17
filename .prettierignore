@@ -11,5 +11,3 @@ web/src/lib/database.types.ts
 web/public/brand/*.png
 web/public/brand/*.ico
 
-# The brief is kept exactly as written.
-docs/Tallybox-Master-Build-Prompt.md

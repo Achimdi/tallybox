@@ -22,7 +22,7 @@ insert into public.profiles (id, business_id, role, username, display_name) valu
   ('aaaaaaaa-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'staff', 'bola', 'Bola'),
   ('aaaaaaaa-0000-0000-0000-0000000000b1', 'b0000000-0000-0000-0000-00000000000b', 'owner', null, 'Owner B');
 
--- The brief's drinks: Coke and Fanta use the shared bottle only; apple juice
+-- A drinks business: Coke and Fanta use the shared bottle only; apple juice
 -- counts its own 800 and uses the bottle too; jollof counts nothing.
 select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a1');
 select public.upsert_supply('d0000000-0000-0000-0000-000000000001', '300 ml bottle', 'bottle', null, 100, 1000);

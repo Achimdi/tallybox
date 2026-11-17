@@ -86,7 +86,7 @@ export default function CreateStaffPage() {
     }
   })
 
-  // The plan-limit seam. In v1 this always allows (see docs/billing-plan.md).
+  // The plan-limit seam. In v1 this always allows.
   const mayAddStaff = entitlements.canAdd('staff', staffList.data?.length ?? 0)
 
   return (

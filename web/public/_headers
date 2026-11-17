@@ -1,4 +1,4 @@
-# Cloudflare Pages response headers. Applied in production and previews,
+# Cloudflare response headers. Applied in production and previews,
 # not by the local dev server.
 
 /*

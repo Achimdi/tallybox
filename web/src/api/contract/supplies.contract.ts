@@ -108,7 +108,7 @@ export function describeSuppliesContract(
       expect(rows.every((move) => move.quantityAfter >= 0)).toBe(true)
     }
 
-    /** The brief's drinks: three drinks sharing bottles; apple juice also counts its own 800. */
+    /** A drinks business: three drinks sharing bottles; apple juice also counts its own 800. */
     async function drinksShop() {
       const bottle = await owner.supplies.upsert(newSupply())
       const use = [{ supplyId: bottle.id, unitsPerSale: 1 }]

@@ -1,55 +1,50 @@
 # Tallybox
 
-Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, hosted free on Cloudflare (a Worker serving the built app, see `wrangler.jsonc`), with Supabase for the database, sign-in and server functions.
+Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs, and it can be added to a phone's home screen.
 
-- **Working rules for Claude Code:** [CLAUDE.md](CLAUDE.md)
+- Staff take orders on their phones. An order is confirmed only after "Payment received" is ticked, and stock goes down automatically. Orders can be held while a transfer arrives.
+- Owners see the day's sales, manage items, shared supplies (bottles, caps…), deliveries and stock counts, void orders, run reports over any range and export CSV.
+- Receipts as a picture or PDF, shared or printed from the browser.
+- Each business is separate. Businesses register with a single-use activation code, and a hidden developer area manages businesses and access periods.
 
-## Status and plan
-
-| Phase                               | What                                                                                                                      | Status                                                            |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 0. Foundation                       | App shell, design system, PWA, tests, CI                                                                                  | Done                                                              |
-| 1. Complete UI on a mock data layer | Every screen, clickable end to end, with demo data kept in the browser. No backend, no accounts, no keys. Steps 1A to 1D. | Done, including shared supplies                                   |
-| 2. Connect Supabase                 | Database, sign-in and server functions replace the mock, feature by feature                                               | Database for 2A to 2C done; waiting for your Supabase dev project |
-| 3. Polish and release               | Branding, audit, backups or upgrade, domain, email, production deploy                                                     | Not started                                                       |
-| 4. Later                            | Thermal printing, billing, branches, barcode scanning and more                                                            | Not started                                                       |
-
-The backend (database migrations, eight Edge Functions, 355 database tests and 32 function tests) lives in `supabase/`. Run its tests with `npm run db:test:local` and `npm run functions:test`; neither needs Docker or an account.
+React + TypeScript in `web/`, Supabase (Postgres, sign-in, Edge Functions) in `supabase/`, hosted on Cloudflare.
 
 ## Run it
 
-You need Node.js 22.12 or newer (24 LTS recommended) and Git. Everything else installs with the project.
+You need Node.js 22.12 or newer (24 LTS recommended) and Git.
 
 ```bash
 npm install        # once
 npm run dev        # http://localhost:5173
 ```
 
-Nothing else is needed in Phase 1: no accounts, no keys, no database. The app runs on **demo data kept in your browser**, and a yellow banner says so on every screen.
-
-**Try it:** the login pages list demo accounts (password `demo1234` for all). Tap one to fill the form.
+Without any settings the app runs on **demo data kept in your browser**, and a yellow banner says so on every screen. The login pages list demo accounts (password `demo1234` for all); tap one to fill the form:
 
 - **Developer** (`dev@demo.tallybox.test`): businesses, activation codes, suspend, extend access, reset links.
-- **Owner** of Sunrise Pharmacy (`owner@demo.tallybox.test`), whose access ends in 5 days.
-- **Staff** at business code `sunrise-demo`: `ada` works, `chidi` is turned off. Ada can take orders (New order), hold them while a transfer arrives, see today's orders and her held order (My orders), browse items and change her password.
+- **Owner** of Sunrise Pharmacy (`owner@demo.tallybox.test`).
+- **Staff** at business code `sunrise-demo`: `ada` works, `chidi` is turned off.
 - Owners of a **suspended** business and of one whose **access has ended**.
 
-To try the whole activation flow: sign in as the developer, generate a code, sign out, register a business with that code and email, then sign in as its owner. Open a second tab to be two people at once (each tab has its own sign-in, and both share the demo data). **Reset demo data** on the welcome page puts everything back.
+Open a second tab to be two people at once (each tab has its own sign-in; both share the demo data). **Reset demo data** on the welcome page puts everything back.
+
+To run against a Supabase project instead, copy `.env.example` to `.env.local` and fill it in (public values only; it explains each one).
 
 ## Commands
 
-Run all of these from the repo root.
+Run these from the repo root.
 
-| Command                | What it does                                                     |
-| ---------------------- | ---------------------------------------------------------------- |
-| `npm run dev`          | Start the app with live reload                                   |
-| `npm run check`        | Everything CI checks: format, lint, typecheck, unit tests, build |
-| `npm run test`         | Unit and component tests                                         |
-| `npm run test:e2e`     | End-to-end tests against the real production build               |
-| `npm run build`        | Production build into `web/dist`                                 |
-| `npm run preview`      | Serve the production build locally                               |
-| `npm run format`       | Format every file                                                |
-| `npm run icons -w web` | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
+| Command                  | What it does                                                     |
+| ------------------------ | ---------------------------------------------------------------- |
+| `npm run dev`            | Start the app with live reload                                   |
+| `npm run check`          | Everything CI checks: format, lint, typecheck, unit tests, build |
+| `npm run test`           | Unit and component tests                                         |
+| `npm run test:e2e`       | End-to-end tests against the production build (demo data)        |
+| `npm run build`          | Production build into `web/dist`                                 |
+| `npm run preview`        | Serve the production build locally                               |
+| `npm run format`         | Format every file                                                |
+| `npm run db:test:local`  | Database tests (pgTAP) in an in-memory Postgres, no Docker       |
+| `npm run functions:test` | Edge Function tests (Deno)                                       |
+| `npm run icons -w web`   | Regenerate PNG icons after changing `web/public/brand/icon.svg`  |
 
 First time running end-to-end tests: `npx -w web playwright install chromium`.
 
@@ -58,43 +53,24 @@ First time running end-to-end tests: `npx -w web playwright install chromium`.
 ```
 web/                 The React app
   src/app/           Router, route guards, layouts, providers
-  src/api/           TallyboxApi: the one data interface (mock now, Supabase in Phase 2)
-  src/domain/        Business rules as pure functions, shared by both implementations
+  src/api/           TallyboxApi: the one data interface (demo and Supabase versions)
+  src/domain/        Business rules as pure functions, shared by both versions
   src/components/    Shared UI (buttons, fields, cards, dialogs...)
   src/features/      One folder per feature (auth, items, orders...)
   src/lib/           Money, dates, errors, logging
   src/styles/        Design tokens (tokens.css) and base styles
-  public/brand/      Placeholder logo and icons
-  public/_headers    Security headers for Cloudflare Pages
+  public/_headers    Security and caching headers
   e2e/               End-to-end tests
+supabase/            Migrations, Edge Functions, database and function tests
+wrangler.jsonc       What Cloudflare publishes (web/dist, as a single-page app)
 .github/workflows/   CI
 ```
 
-## Accounts
+## Deploying
 
-Phase 1 needs none. They are set up only when needed, one step at a time, and you never paste a password, token or key into a chat:
+Cloudflare builds the repository on every push to `main` (`npm run build`, then `npx wrangler deploy`) and serves `web/dist` as static files. The app's settings are build variables in Cloudflare (`VITE_DATA_SOURCE`, `VITE_RELEASE`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_TURNSTILE_SITE_KEY`; all public). A build with `VITE_RELEASE=client` refuses to start on demo data.
 
-- **GitHub** (already set up) for the code and CI. Push, then check the CI jobs go green in the repo's **Actions** tab.
-- **Cloudflare Pages**, optional in Phase 1, to share a clearly labelled DEMO link (steps below).
-- **Supabase**: a `tallybox-dev` project for development and testing (Cloudflare's Turnstile test keys) and a `tallybox-prod` project for real clients (a real Turnstile widget). The step-by-step setup guides are in the developer's private notes.
-
-### Cloudflare Pages (optional demo link)
-
-1. Sign up at dash.cloudflare.com. Go to **Workers & Pages > Create > Pages > Connect to Git** and pick the `tallybox` repo.
-2. Build settings:
-   - Production branch: `main`
-   - Build command: `npm run build`
-   - Build output directory: `web/dist`
-   - Root directory: leave empty
-3. Deploy. The demo is then at `https://YOUR-PROJECT.pages.dev`. Every push to `main` updates it, and every pull request gets its own preview URL.
-
-Demo data lives only in the browser it was created in, so a demo link is for showing the product, never for real clients. Production builds for real clients refuse to start in demo mode.
-
-Deploys use Cloudflare's own GitHub connection, so no deploy secrets are stored in GitHub. The Node version comes from `.node-version`.
-
-### VS Code
-
-Open the folder and accept the "install recommended extensions" prompt (ESLint, Prettier, Tailwind CSS IntelliSense, Error Lens, GitLens). Files format on save.
+Database changes ship as versioned migrations in `supabase/migrations`, applied to a development project first and to production after a check.
 
 ## How updates reach people
 
@@ -106,23 +82,18 @@ Tallybox is an installable web app. Its service worker caches only the app shell
 
 To release: bump `version` in `web/package.json` (and the root `package.json`), commit, and push to `main`.
 
-**Test it after the first deploy:**
-
-1. Open the live site in a phone browser and install it to the home screen. Leave it open.
-2. Bump the version, push, and wait for Cloudflare to finish deploying.
-3. Switch away from the app and back. Within a few seconds the "New version available" card should appear. Tap Refresh and check the version in the footer.
-
 ## Troubleshooting
 
 **Pages have no styling, or the build stops with "Tailwind found no class names".**
-Windows Smart App Control can block a freshly released copy of Tailwind's scanner (a small native program) until Windows has seen it enough to trust it. Tailwind then cannot read the source files. This happened with Tailwind 4.3.5 during Phase 0, which is why Tailwind is pinned to an exact version in `web/package.json`. If it happens after an upgrade, go back to the previous Tailwind version and try the new one again in a week or two. Do not turn Smart App Control off for this.
+Windows Smart App Control can block a freshly released copy of Tailwind's scanner (a small native program) until Windows trusts it. Tailwind then cannot read the source files, which is why Tailwind is pinned to an exact version in `web/package.json`. If it happens after an upgrade, go back to the previous version and try the new one again in a week or two. Don't turn Smart App Control off for this.
 
 **Tests fail with "Invalid Chai property".**
 Already handled in `web/src/test/setup.ts`. If it returns, the cause is two copies of Vitest being loaded, usually from a lower-case drive letter in the terminal path on Windows.
 
-## Security notes
+## Security
 
-- Phase 1 has no server and holds no real data. Demo data stays in the browser.
-- From Phase 2, the browser only ever gets the Supabase URL and **publishable** key. Data is protected by Row Level Security and server functions, not by hiding keys. `web/src/lib/env.ts` refuses to start the client if a secret key is put in its place.
+- The browser only ever gets the Supabase URL and **publishable** key. Data is protected by Row Level Security and server functions, not by hiding keys. `web/src/lib/env.ts` refuses to start if a secret key is put in its place.
+- The browser never writes to tables: every change goes through a database function or an Edge Function that checks who is asking.
+- Sign-in and registration are protected by Cloudflare Turnstile, checked on the server.
 - Security headers, including a Content Security Policy, are in `web/public/_headers`.
 - Logs are structured and personal data is removed before writing (`web/src/lib/logger.ts`).

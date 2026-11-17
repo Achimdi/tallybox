@@ -11,7 +11,7 @@ import {
   type SupplyFacts,
 } from './supplies'
 
-/** The brief's drinks business: 1,000 bottles and caps shared by three drinks. */
+/** A drinks business: 1,000 bottles and caps shared by three drinks. */
 const supplies = new Map<string, SupplyFacts>([
   ['bottle', { id: 'bottle', name: '300 ml bottle', unit: 'bottle', quantity: 1000, active: true }],
   ['cap', { id: 'cap', name: 'Bottle cap', unit: 'cap', quantity: 1000, active: true }],
