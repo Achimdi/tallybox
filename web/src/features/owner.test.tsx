@@ -20,6 +20,7 @@ describe('owner dashboard', () => {
     renderApp({ path: '/owner/dashboard', api: test.api })
     expect(await screen.findByText('Sales today')).toBeInTheDocument()
     expect(screen.getByText(/Your Tallybox access ends on/)).toBeInTheDocument()
+    expect(screen.getByText('Contact tallybox3@gmail.com')).toBeInTheDocument()
     const actions = screen.getByRole('navigation', { name: 'Quick actions' })
     expect(within(actions).getByRole('link', { name: /Restock/ })).toHaveAttribute(
       'href',

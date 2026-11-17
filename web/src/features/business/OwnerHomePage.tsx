@@ -72,8 +72,8 @@ export default function OwnerHomePage() {
           }
           description={
             daysLeft >= 0
-              ? `Contact ${SUPPORT_EMAIL} to extend it, so nobody is locked out.`
-              : `You can keep working until ${formatDate(new Date(endsOn.getTime() + ACCESS_GRACE_DAYS * DAY_MS), timezone)}. Contact ${SUPPORT_EMAIL} to extend it.`
+              ? `Contact ${SUPPORT_EMAIL}`
+              : `You can keep working until ${formatDate(new Date(endsOn.getTime() + ACCESS_GRACE_DAYS * DAY_MS), timezone)}. Contact ${SUPPORT_EMAIL}`
           }
         />
       ) : null}
