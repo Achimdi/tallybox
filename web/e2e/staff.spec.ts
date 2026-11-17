@@ -12,11 +12,14 @@ async function signInAsAda(page: Page) {
 /** The cart: a sheet on phones, a side panel on wider screens. */
 async function cart(page: Page): Promise<Locator> {
   const bar = page.getByRole('button', { name: /View cart/ })
+  const panel = page.getByRole('complementary', { name: 'Cart and payment' })
+  // Wait for the page to show one of them: on a slow machine neither is there yet.
+  await expect(bar.or(panel)).toBeVisible()
   if (await bar.isVisible()) {
     await bar.click()
     return page.getByRole('dialog', { name: 'Cart' })
   }
-  return page.getByRole('complementary', { name: 'Cart and payment' })
+  return panel
 }
 
 test('staff take an order from cart to confirmation', async ({ page }) => {
