@@ -17,6 +17,20 @@ create role service_role nologin bypassrls;
 create schema auth;
 create schema extensions;
 
+create schema storage;
+
+-- The part of Supabase Storage that the migrations reference: buckets.
+create table storage.buckets (
+  id text primary key,
+  name text not null unique,
+  public boolean default false,
+  file_size_limit bigint,
+  allowed_mime_types text[],
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+
 grant usage on schema public, extensions, auth to anon, authenticated, service_role;
 
 -- The parts of Supabase Auth that the migrations reference.

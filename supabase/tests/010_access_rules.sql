@@ -103,7 +103,12 @@ select bag_eq(
     'create_order',
     'void_order',
     'save_held_order',
-    'discard_held_order'
+    'discard_held_order',
+    -- Phase 2D: reports, staff on/off, settings (each checks live that the caller is an owner)
+    'owner_dashboard',
+    'sales_report',
+    'set_staff_active',
+    'update_business_settings'
   ],
   'signed-in users can run only the functions meant for them'
 );
