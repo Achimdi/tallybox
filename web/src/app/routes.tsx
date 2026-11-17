@@ -21,6 +21,7 @@ const OwnerLoginPage = lazy(() => import('@/features/auth/OwnerLoginPage'))
 const StaffLoginPage = lazy(() => import('@/features/auth/StaffLoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('@/features/auth/ResetPasswordPage'))
 const SuspendedPage = lazy(() => import('@/features/auth/SuspendedPage'))
 
 // Selling (staff and owners)
@@ -92,6 +93,8 @@ export const routes: RouteObject[] = [
       {
         element: <PublicLayout />,
         children: [
+          // An owner's one-time reset link signs them in, so this is not "visitors only".
+          { path: 'reset-password', Component: ResetPasswordPage },
           { path: 'suspended', element: <SuspendedPage fallbackReason="suspended" /> },
           { path: 'access-ended', element: <SuspendedPage fallbackReason="access_ended" /> },
           ...devRoutes,
