@@ -16,6 +16,8 @@ import {
   callFunction,
   callRpc,
   fromReadError,
+  requireSignedInRole,
+  type Role,
   type SupabaseApiOptions,
   type TallyboxClient,
 } from './client'
@@ -233,20 +235,7 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     schema: Schema,
   ) => callFunction(client, options, name, body, schema)
 
-  /**
-   * Who this browser's sign-in says it is, read locally (no network). The
-   * database's own rules are the real check; this only lets the app return the
-   * same error codes as the demo: "unauthenticated" when nobody is signed in,
-   * "permission_denied" for the wrong role.
-   */
-  async function requireRole(roles: readonly ('owner' | 'staff' | 'super_admin')[]) {
-    const { data } = await client.auth.getSession()
-    if (!data.session) throw new AppError('unauthenticated')
-    const role = (data.session.user.app_metadata as { role?: unknown } | undefined)?.role
-    if (typeof role !== 'string' || !roles.includes(role as 'owner')) {
-      throw new AppError('permission_denied')
-    }
-  }
+  const requireRole = (roles: readonly Role[]) => requireSignedInRole(client, roles)
 
   /** The developer portal looks like it doesn't exist to anyone else: "not found". */
   async function asDeveloper<Result>(action: () => Promise<Result>): Promise<Result> {

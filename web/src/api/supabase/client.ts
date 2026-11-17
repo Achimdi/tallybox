@@ -153,4 +153,24 @@ export function fromReadError(error: { code?: string; message?: string }): AppEr
   return fromDatabaseError(error)
 }
 
+export type Role = 'owner' | 'staff' | 'super_admin'
+
+/**
+ * Who this browser's sign-in says it is, read locally (no network). The
+ * database's own rules are the real check; this only lets the app return the
+ * same error codes as the demo: "unauthenticated" when nobody is signed in,
+ * "permission_denied" for the wrong role.
+ */
+export async function requireSignedInRole(
+  client: TallyboxClient,
+  roles: readonly Role[],
+): Promise<void> {
+  const { data } = await client.auth.getSession()
+  if (!data.session) throw new AppError('unauthenticated')
+  const role = (data.session.user.app_metadata as { role?: unknown } | undefined)?.role
+  if (typeof role !== 'string' || !roles.includes(role as Role)) {
+    throw new AppError('permission_denied')
+  }
+}
+
 export { isAppErrorCode }
