@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { TextField } from '@/components/TextField'
 import { useToast } from '@/components/toast-context'
+import { isUnitName, UNIT_IS_A_NUMBER } from '@/domain/stock'
 import { SUPPLY_LIMITS } from '@/domain/supplies'
 import { useSessionUser } from '@/features/auth/session'
 import { AppError, toAppError, userMessage } from '@/lib/errors'
@@ -34,7 +35,8 @@ function formSchema(currency: string) {
     unit: z
       .string()
       .trim()
-      .max(SUPPLY_LIMITS.unitMax, `Use at most ${SUPPLY_LIMITS.unitMax} characters.`),
+      .max(SUPPLY_LIMITS.unitMax, `Use at most ${SUPPLY_LIMITS.unitMax} characters.`)
+      .refine(isUnitName, UNIT_IS_A_NUMBER),
     costPrice: z
       .string()
       .trim()
@@ -117,10 +119,11 @@ function SupplyForm({ supply, costPrice }: { supply: Supply | null; costPrice: n
         {...register('name')}
       />
       <TextField
-        label="Unit"
+        label="Unit name"
         autoComplete="off"
         placeholder="bottle, cap, pack…"
-        hint="Optional. How one of it is counted."
+        optional
+        hint="A word for one of it, like bottle or cap. Not a number."
         error={errors.unit?.message}
         {...register('unit')}
       />
@@ -128,7 +131,8 @@ function SupplyForm({ supply, costPrice }: { supply: Supply | null; costPrice: n
         label={`Cost price (${currency})`}
         inputMode="decimal"
         autoComplete="off"
-        hint="Optional. Only you see it. Used for stock value."
+        optional
+        hint="Only you see it. Used for stock value."
         error={errors.costPrice?.message}
         {...register('costPrice')}
       />
@@ -138,7 +142,7 @@ function SupplyForm({ supply, costPrice }: { supply: Supply | null; costPrice: n
           inputMode="numeric"
           autoComplete="off"
           placeholder="0"
-          hint="How many you have now. Nothing is used up until items that share it are sold."
+          hint="How many you have right now, for example 1000. Items that share it use it up as they sell."
           error={errors.openingQuantity?.message}
           {...register('openingQuantity')}
         />

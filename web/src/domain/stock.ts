@@ -128,3 +128,15 @@ export function stockValue(
   }
   return { value, itemsWithCost, itemsWithoutCost }
 }
+
+/**
+ * A unit is a word for one of something ("pack", "bottle"), never a number.
+ * A plain number in the unit box almost always means the stock count was typed
+ * in the wrong place; it belongs in Opening quantity.
+ */
+export function isUnitName(value: string): boolean {
+  return !/^\s*\d+([.,]\d+)?\s*$/.test(value)
+}
+
+export const UNIT_IS_A_NUMBER =
+  'Use a word for one of it, like pack or bottle. Put how many you have in Opening quantity.'

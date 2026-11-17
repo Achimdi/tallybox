@@ -59,6 +59,19 @@ describe('owner items', () => {
     await waitFor(() => expect(screen.queryByText('This item is archived')).not.toBeInTheDocument())
   })
 
+  it('explains that the unit is a word and the stock count goes in Opening quantity', async () => {
+    const test = await signedInTestApi('owner')
+    renderApp({ path: '/owner/items/new', api: test.api })
+    await userEvent.type(await screen.findByLabelText(/^Name/), 'Paracetamol 1g')
+    await userEvent.type(screen.getByLabelText(/^Unit name/), '100')
+    await userEvent.type(screen.getByLabelText(/^Selling price/), '500')
+    await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(
+      await screen.findByText(/Use a word for one of it, like pack or bottle/),
+    ).toBeInTheDocument()
+    expect((await test.api.items.list()).some((item) => item.name === 'Paracetamol 1g')).toBe(false)
+  })
+
   it('refuses a name already in use, on the name field', async () => {
     const test = await signedInTestApi('owner')
     renderApp({ path: '/owner/items/new', api: test.api })

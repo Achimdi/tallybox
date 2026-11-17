@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { monthStart, weekStart } from '@/lib/dates'
 import { itemSales, summarizeDay, trendAgainst, type OrderFacts } from './reports'
-import { describeAdjustment, formatDelta, restockLinesProblem, stockValue } from './stock'
+import {
+  describeAdjustment,
+  formatDelta,
+  isUnitName,
+  restockLinesProblem,
+  stockValue,
+} from './stock'
 
 const order = (overrides: Partial<OrderFacts>): OrderFacts => ({
   status: 'completed',
@@ -123,5 +129,13 @@ describe('week and month starts', () => {
 
   it('months start on the 1st', () => {
     expect(monthStart('2026-11-13')).toBe('2026-11-01')
+  })
+})
+
+describe('unit names', () => {
+  it('accepts words and refuses a plain number, which belongs in Opening quantity', () => {
+    for (const word of ['pack', 'bottle', '300 ml bottle', '12-pack', ''])
+      expect(isUnitName(word)).toBe(true)
+    for (const number of ['100', ' 100 ', '2.5', '1,5']) expect(isUnitName(number)).toBe(false)
   })
 })

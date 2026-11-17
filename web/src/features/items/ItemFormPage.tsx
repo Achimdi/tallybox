@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { TextField } from '@/components/TextField'
 import { useToast } from '@/components/toast-context'
-import { STOCK_LIMITS } from '@/domain/stock'
+import { isUnitName, STOCK_LIMITS, UNIT_IS_A_NUMBER } from '@/domain/stock'
 import { useSessionUser } from '@/features/auth/session'
 import { useBusinessSettings } from '@/features/business/api'
 import { AppError, toAppError, userMessage } from '@/lib/errors'
@@ -46,7 +46,11 @@ function formSchema(currency: string) {
       .min(1, 'Enter the item name.')
       .max(STOCK_LIMITS.itemNameMax, 'Use at most 80 characters.'),
     category: z.string().trim().max(STOCK_LIMITS.categoryMax, 'Use at most 40 characters.'),
-    unit: z.string().trim().max(STOCK_LIMITS.unitMax, 'Use at most 20 characters.'),
+    unit: z
+      .string()
+      .trim()
+      .max(STOCK_LIMITS.unitMax, 'Use at most 20 characters.')
+      .refine(isUnitName, UNIT_IS_A_NUMBER),
     price: money('selling price', true),
     costPrice: money('cost price', false),
     openingQuantity: wholeNumber('Enter a whole number, like 24.'),
@@ -168,7 +172,8 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
         label="Category"
         autoComplete="off"
         list={listId}
-        hint="Optional. Pick one you already use, or type a new one."
+        optional
+        hint="Pick one you already use, or type a new one."
         error={errors.category?.message}
         {...register('category')}
       />
@@ -178,10 +183,11 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
         ))}
       </datalist>
       <TextField
-        label="Unit"
+        label="Unit name"
         autoComplete="off"
         placeholder="pack, bottle, piece…"
-        hint="Optional. How it is counted."
+        optional
+        hint="A word for one of this item, like pack or bottle. Not a number."
         error={errors.unit?.message}
         {...register('unit')}
       />
@@ -197,7 +203,8 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
         label={`Cost price (${currency})`}
         inputMode="decimal"
         autoComplete="off"
-        hint="Optional. Only you see it. Used for stock value and profit."
+        optional
+        hint="Only you see it. Used for stock value and profit."
         error={errors.costPrice?.message}
         {...register('costPrice')}
       />
@@ -215,7 +222,7 @@ function ItemForm({ item, costPrice }: ItemFormProps) {
           inputMode="numeric"
           autoComplete="off"
           placeholder="0"
-          hint="How many you have now. After this, stock changes only through restocks and adjustments."
+          hint="How many you have right now, for example 100. This is your stock: each sale takes from it. Later, add deliveries with Restock."
           error={errors.openingQuantity?.message}
           {...register('openingQuantity')}
         />
