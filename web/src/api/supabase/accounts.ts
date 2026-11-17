@@ -134,6 +134,9 @@ const AUTH_CODES: Record<string, AppErrorCode> = {
   user_banned: 'account_disabled',
   weak_password: 'weak_password',
   same_password: 'weak_password',
+  // With require_current_password on (supabase/config.toml).
+  current_password_invalid: 'wrong_password',
+  current_password_required: 'wrong_password',
 }
 
 export function fromAuthError(
@@ -283,10 +286,12 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
         input.portal === 'owner'
           ? input.email.trim().toLowerCase()
           : staffEmail(input.username, input.businessCode, options.staffEmailDomain)
+      // Supabase Auth checks the Turnstile token itself (auth.captcha in config.toml).
+      const captchaToken = input.captchaToken ?? options.fallbackCaptchaToken
       const { error } = await client.auth.signInWithPassword({
         email,
         password: input.password,
-        ...(input.captchaToken ? { options: { captchaToken: input.captchaToken } } : {}),
+        ...(captchaToken ? { options: { captchaToken } } : {}),
       })
       if (error) throw fromAuthError(error, options.isOnline)
 
@@ -332,19 +337,12 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     signOut: signOutHere,
 
     async changePassword({ currentPassword, newPassword }) {
+      if (!options.isOnline()) throw new AppError('offline')
       const { data } = await client.auth.getSession()
-      const email = data.session?.user.email
-      if (!email) throw new AppError('unauthenticated')
-      // Supabase does not check the current password itself, so sign in with it first.
-      const check = await client.auth.signInWithPassword({ email, password: currentPassword })
-      if (check.error) {
-        const error = fromAuthError(check.error, options.isOnline)
-        throw error.code === 'invalid_credentials'
-          ? new AppError('wrong_password', { cause: check.error })
-          : error
-      }
-      // The project also requires it (require_current_password), so a stolen
-      // sign-in can't change the password by calling Supabase directly.
+      if (!data.session) throw new AppError('unauthenticated')
+      // The project requires the current password (require_current_password),
+      // so Supabase checks it: a stolen sign-in can't change the password, and
+      // no second sign-in (which would need a new Turnstile check) is needed.
       const { error } = await client.auth.updateUser({
         password: newPassword,
         current_password: currentPassword,

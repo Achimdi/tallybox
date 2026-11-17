@@ -25,6 +25,7 @@
     "db:types": "supabase gen types --remote --lang typescript --schema public > web/src/lib/database.types.ts",
     "db:test:local": "node supabase/scripts/db-test-local.mjs",
     "functions:check": "deno check --config supabase/functions/deno.local.json supabase/functions",
+    "config:push": "node supabase/scripts/config-push.mjs",
     "functions:test": "deno test --config supabase/functions/deno.local.json --no-prompt supabase/functions",
     "test:live": "npm run test:live -w web"
   },

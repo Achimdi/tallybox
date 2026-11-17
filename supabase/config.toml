@@ -213,10 +213,14 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# Tallybox: Cloudflare Turnstile on both sign-in forms, checked by Supabase Auth.
+# The secret is never written here. Set SUPABASE_AUTH_CAPTCHA_SECRET when
+# pushing: Cloudflare's always-pass test secret for tallybox-dev, the real
+# Turnstile secret (from a gitignored file) for production.
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 
 [auth.email]
 # Allow/disallow the email provider. When false, users can't sign up or sign in with email.

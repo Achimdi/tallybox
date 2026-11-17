@@ -30,6 +30,13 @@ const developer = {
 }
 const ready = Boolean(url && publishableKey && developer.email && developer.password)
 
+/**
+ * Cloudflare's dummy Turnstile token. Only the always-pass TEST secret accepts
+ * it, which the dev project uses for registration and sign-in. A project with
+ * real keys refuses it: never point these tests at production.
+ */
+const TEST_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
+
 /** What Supabase has so far: everything, since step 2D. */
 const BUILT: readonly ShopFeature[] = [
   'orders',
@@ -65,8 +72,7 @@ function browser(): TallyboxApi {
     publishableKey,
     staffEmailDomain: DEFAULT_STAFF_EMAIL_DOMAIN,
     storage: memorySessionStorage(),
-    // Cloudflare's dummy token: accepted only by the always-pass TEST secret on the dev project.
-    fallbackCaptchaToken: 'XXXX.DUMMY.TOKEN.XXXX',
+    fallbackCaptchaToken: TEST_CAPTCHA_TOKEN,
     deviceId: () => crypto.randomUUID(),
     isOnline: () => true,
   })
@@ -166,6 +172,19 @@ if (ready) {
 
   // Settings on the Supabase project itself, beyond what the app's own calls show.
   describe('Supabase project settings (live)', () => {
+    it('refuses a sign-in that skips the Turnstile check, as a bot would try', async () => {
+      const { owner } = await ownerShop()
+      if (owner.portal !== 'owner') throw new Error('expected an owner')
+      const raw = createClient(url, publishableKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const { error } = await raw.auth.signInWithPassword({
+        email: owner.email,
+        password: owner.password,
+      })
+      expect(error?.code).toBe('captcha_failed')
+    })
+
     it('refuses a password change that skips the current password, even when signed in', async () => {
       const { owner } = await ownerShop()
       if (owner.portal !== 'owner') throw new Error('expected an owner')
@@ -176,6 +195,7 @@ if (ready) {
       const signedIn = await raw.auth.signInWithPassword({
         email: owner.email,
         password: owner.password,
+        options: { captchaToken: TEST_CAPTCHA_TOKEN },
       })
       expect(signedIn.error).toBeNull()
       const { error } = await raw.auth.updateUser({ password: 'taken-over-123' })

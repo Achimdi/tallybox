@@ -93,6 +93,14 @@ describe('sign-in errors', () => {
       'invalid_credentials',
     )
     expect(fromAuthError({ code: 'weak_password', status: 422 }, online).code).toBe('weak_password')
+    // Supabase's answers with require_current_password on (checked on the dev project).
+    expect(fromAuthError({ code: 'current_password_invalid', status: 400 }, online).code).toBe(
+      'wrong_password',
+    )
+    expect(fromAuthError({ code: 'current_password_required', status: 400 }, online).code).toBe(
+      'wrong_password',
+    )
+    expect(fromAuthError({ code: 'same_password', status: 422 }, online).code).toBe('weak_password')
     expect(fromAuthError({ code: 'email_not_confirmed', status: 400 }, online).code).toBe(
       'invalid_credentials',
     )
