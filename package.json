@@ -21,7 +21,7 @@
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "db:test": "supabase test db",
-    "db:push": "supabase db push",
+    "db:push": "supabase db push --remote",
     "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts",
     "db:test:local": "node supabase/scripts/db-test-local.mjs",
     "functions:check": "deno check --config supabase/functions/deno.local.json supabase/functions",
