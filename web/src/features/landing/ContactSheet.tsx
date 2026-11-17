@@ -3,7 +3,8 @@ import { createContext, use, useCallback, useMemo, useState, type ReactNode } fr
 import { BottomSheet } from '@/components/BottomSheet'
 import { buttonClasses } from '@/components/button-styles'
 import { useToast } from '@/components/toast-context'
-import { SUPPORT_EMAIL } from '@/lib/config'
+import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM } from '@/lib/config'
+import { InstagramIcon } from './InstagramIcon'
 
 /**
  * Getting in touch from the front page.
@@ -11,8 +12,8 @@ import { SUPPORT_EMAIL } from '@/lib/config'
  * A plain mailto: link does nothing on a computer with no email program set
  * up (common for people who use Gmail in the browser), so every contact link
  * here opens this panel instead: the address with a Copy button, a ready
- * Gmail message in a new tab, and the email app for phones and computers that
- * have one.
+ * Gmail message in a new tab, the email app for phones and computers that
+ * have one, and Instagram.
  */
 
 export type ContactReason = 'code' | 'contact'
@@ -21,12 +22,13 @@ const COPY: Record<ContactReason, { title: string; description: string; subject:
   code: {
     title: 'Ask for an activation code',
     description:
-      'Email us your business name and your name. We reply with a single-use code and agree how long your access lasts.',
+      'Send us your business name and your name, by email or on Instagram. We reply with a single-use code and agree how long your access lasts.',
     subject: 'Tallybox activation code',
   },
   contact: {
     title: 'Contact Tallybox',
-    description: 'Questions, help or an activation code: write to us and we will get back to you.',
+    description:
+      'Questions, help or an activation code: write to us by email or on Instagram, and we will get back to you.',
     subject: 'Tallybox',
   },
 }
@@ -82,16 +84,24 @@ export function ContactProvider({ children }: { children: ReactNode }) {
 /** A link-styled button (or anything else) that opens the contact panel. */
 export function ContactLink({
   reason,
+  label,
   className,
   children,
 }: {
   reason: ContactReason
+  /** Needed when the content is only an icon. */
+  label?: string
   className?: string
   children: ReactNode
 }) {
   const open = use(ContactContext)
   return (
-    <button type="button" className={className} onClick={() => open(reason)}>
+    <button
+      type="button"
+      className={className}
+      onClick={() => open(reason)}
+      {...(label ? { 'aria-label': label, title: label } : {})}
+    >
       {children}
     </button>
   )
@@ -159,6 +169,15 @@ function ContactSheet({
         >
           <Mail aria-hidden="true" className="size-5" />
           Open your email app
+        </a>
+        <a
+          href={SUPPORT_INSTAGRAM.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClasses({ variant: 'secondary', size: 'lg', fullWidth: true })}
+        >
+          <InstagramIcon className="size-5" />
+          Message us on Instagram
         </a>
       </div>
     </BottomSheet>

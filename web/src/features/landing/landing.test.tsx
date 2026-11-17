@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SUPPORT_EMAIL } from '@/lib/config'
+import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM } from '@/lib/config'
 import { createTestApi } from '@/test/mockApi'
 import { renderApp } from '@/test/render'
 
@@ -35,6 +35,10 @@ describe('the front page', () => {
         ).not.toBeNull()
       } else if (href.startsWith('/')) {
         expect(PAGES.has(href), `"${link.textContent}" leads to ${href}`).toBe(true)
+      } else if (href === SUPPORT_INSTAGRAM.url) {
+        // The one outside link: opens in a new tab without giving it this page.
+        expect(link).toHaveAttribute('target', '_blank')
+        expect(link).toHaveAttribute('rel', 'noopener noreferrer')
       } else {
         throw new Error(`Unexpected link on the front page: ${href}`)
       }
@@ -57,6 +61,10 @@ describe('the front page', () => {
     expect(gmail).toHaveAttribute('target', '_blank')
     expect(gmail).toHaveAttribute('rel', 'noopener noreferrer')
 
+    const instagram = within(panel).getByRole('link', { name: /Message us on Instagram/ })
+    expect(instagram).toHaveAttribute('href', 'https://www.instagram.com/azie_web/')
+    expect(instagram).toHaveAttribute('target', '_blank')
+
     const mailto = within(panel).getByRole('link', { name: /Open your email app/ })
     expect(mailto.getAttribute('href')).toBe(
       `mailto:${SUPPORT_EMAIL}?subject=Tallybox%20activation%20code&body=Business%20name%3A%0AYour%20name%3A%0APhone%20%28optional%29%3A%0A`,
@@ -75,13 +83,15 @@ describe('the front page', () => {
     expect(await screen.findByText('Email address copied')).toBeInTheDocument()
   })
 
-  it('opens the contact panel from the email addresses on the page too', async () => {
+  it('shows email and Instagram icons under Contact in the footer', async () => {
     openFrontPage()
-    const addresses = await screen.findAllByRole('button', { name: SUPPORT_EMAIL })
-    expect(addresses.length).toBe(2)
+    const instagram = await screen.findByRole('link', { name: /Tallybox on Instagram/ })
+    expect(instagram).toHaveAttribute('href', SUPPORT_INSTAGRAM.url)
 
-    await userEvent.click(addresses.at(-1)!)
+    await userEvent.click(screen.getByRole('button', { name: 'Email Tallybox' }))
     const panel = await screen.findByRole('dialog', { name: 'Contact Tallybox' })
+    expect(within(panel).getByText(SUPPORT_EMAIL)).toBeInTheDocument()
     expect(within(panel).getByRole('link', { name: /Write in Gmail/ })).toBeInTheDocument()
+    expect(within(panel).getByRole('link', { name: /Message us on Instagram/ })).toBeInTheDocument()
   })
 })

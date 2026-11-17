@@ -28,9 +28,10 @@ import { Logo } from '@/components/brand/Logo'
 import { ButtonLink } from '@/components/Button'
 import { buttonClasses } from '@/components/button-styles'
 import { ResetDemoData } from '@/features/demo/ResetDemoData'
-import { SUPPORT_EMAIL } from '@/lib/config'
+import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM } from '@/lib/config'
 import { APP_VERSION } from '@/lib/version'
 import { ContactLink, ContactProvider } from './ContactSheet'
+import { InstagramIcon } from './InstagramIcon'
 import { LandingHeader, SECTIONS } from './LandingHeader'
 import {
   ConfirmedCard,
@@ -146,7 +147,7 @@ const FAQ: readonly { question: string; answer: string }[] = [
   },
   {
     question: 'How do I get started, and what does it cost?',
-    answer: `Email ${SUPPORT_EMAIL} with your business name. We will send you an activation code and agree how long your access lasts.`,
+    answer: `Email ${SUPPORT_EMAIL} or message @${SUPPORT_INSTAGRAM.handle} on Instagram with your business name. We will send you an activation code and agree how long your access lasts.`,
   },
 ]
 
@@ -517,11 +518,28 @@ export default function LandingPage() {
                 Staff sign in
               </Link>
             </FooterColumn>
-            <FooterColumn title="Contact">
-              <ContactLink reason="contact" className="text-left break-all hover:text-ink">
-                {SUPPORT_EMAIL}
-              </ContactLink>
-            </FooterColumn>
+            <div className="flex flex-col gap-2">
+              <p className="text-label font-semibold text-ink">Contact</p>
+              <div className="-ml-3 flex items-center gap-1">
+                <ContactLink
+                  reason="contact"
+                  label="Email Tallybox"
+                  className="inline-flex size-12 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+                >
+                  <Mail aria-hidden="true" className="size-6" />
+                </ContactLink>
+                <a
+                  href={SUPPORT_INSTAGRAM.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Tallybox on Instagram (@${SUPPORT_INSTAGRAM.handle})`}
+                  title={`@${SUPPORT_INSTAGRAM.handle} on Instagram`}
+                  className="inline-flex size-12 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+                >
+                  <InstagramIcon className="size-6" />
+                </a>
+              </div>
+            </div>
           </div>
           <div className="border-t border-line">
             <p className="mx-auto w-full max-w-6xl px-4 py-5 text-caption text-ink-muted tabular-nums sm:px-6">
