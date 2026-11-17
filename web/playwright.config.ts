@@ -26,5 +26,9 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !isCI,
     timeout: 180_000,
+    // Always the demo data, whatever .env.local says: a variable set here wins
+    // over the .env files, so switching your own copy to Supabase never breaks
+    // these tests (or touches your real project).
+    env: { VITE_DATA_SOURCE: 'mock' },
   },
 })
