@@ -40,6 +40,17 @@ export interface AdminClient {
     email: string,
     redirectTo: string,
   ): Promise<{ link: string | null; errorCode: string | null }>
+  /** Sets a user's password, as the owner does for a staff member who forgot theirs. */
+  updateUserPassword(userId: string, password: string): Promise<{ errorCode: string | null }>
+  /** Stores a file in a Storage bucket. Never overwrites: every file gets a new name. */
+  uploadObject(
+    bucket: string,
+    path: string,
+    bytes: Uint8Array,
+    contentType: string,
+  ): Promise<{ ok: boolean }>
+  /** Removes files from a Storage bucket. Best effort: a leftover file harms nothing. */
+  removeObjects(bucket: string, paths: string[]): Promise<{ ok: boolean }>
 }
 
 /** Who is calling, taken from their verified token. */
@@ -85,6 +96,8 @@ interface FunctionOptions<Schema extends z.ZodType> {
   /** 'user': a signed-in caller is required. 'none': public (protect it with Turnstile and limits). */
   auth: 'user' | 'none'
   schema: Schema
+  /** The largest request body accepted. Default 10 KB; a logo needs more. */
+  maxBodyBytes?: number
   run(context: Context<z.infer<Schema>>): Promise<unknown>
 }
 
@@ -123,6 +136,20 @@ function createRealAdmin(): AdminClient {
       })
       if (error) return { link: null, errorCode: error.code ?? 'unknown' }
       return { link: data.properties?.action_link ?? null, errorCode: null }
+    },
+    async updateUserPassword(userId, password) {
+      const { error } = await client.auth.admin.updateUserById(userId, { password })
+      return { errorCode: error ? (error.code ?? 'unknown') : null }
+    },
+    async uploadObject(bucket, path, bytes, contentType) {
+      const { error } = await client.storage
+        .from(bucket)
+        .upload(path, bytes, { contentType, upsert: false, cacheControl: '31536000' })
+      return { ok: !error }
+    },
+    async removeObjects(bucket, paths) {
+      const { error } = await client.storage.from(bucket).remove(paths)
+      return { ok: !error }
     },
   }
 }
@@ -171,11 +198,11 @@ export function clientIp(request: Request): string {
   return forwarded || request.headers.get('cf-connecting-ip') || 'unknown'
 }
 
-async function readJson(request: Request): Promise<unknown> {
+async function readJson(request: Request, maxBytes: number): Promise<unknown> {
   const declared = Number(request.headers.get('content-length') ?? '0')
-  if (declared > MAX_BODY_BYTES) throw new HttpError('payload_too_large')
+  if (declared > maxBytes) throw new HttpError('payload_too_large')
   const text = await request.text()
-  if (text.length > MAX_BODY_BYTES) throw new HttpError('payload_too_large')
+  if (text.length > maxBytes) throw new HttpError('payload_too_large')
   try {
     return JSON.parse(text) as unknown
   } catch {
@@ -236,7 +263,9 @@ export function defineFunction<Schema extends z.ZodType>(
       const actor = options.auth === 'user' ? await deps.verifyUser(request) : null
       if (options.auth === 'user' && !actor) throw new HttpError('unauthenticated')
 
-      const parsed = options.schema.safeParse(await readJson(request))
+      const parsed = options.schema.safeParse(
+        await readJson(request, options.maxBodyBytes ?? MAX_BODY_BYTES),
+      )
       if (!parsed.success) {
         const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))]
         throw new HttpError('validation', fields)

@@ -11,8 +11,10 @@ import { handler as createStaff } from '../create-staff/handler.ts'
 import { handler as extendBusinessAccess } from '../extend-business-access/handler.ts'
 import { handler as generateActivationCode } from '../generate-activation-code/handler.ts'
 import { handler as registerBusiness } from '../register-business/handler.ts'
+import { handler as resetStaffPassword } from '../reset-staff-password/handler.ts'
 import { handler as revokeActivationCode } from '../revoke-activation-code/handler.ts'
 import { handler as setBusinessStatus } from '../set-business-status/handler.ts'
+import { handler as updateBusinessLogo } from '../update-business-logo/handler.ts'
 
 type RpcResult = { data: unknown; error: { code?: string; message?: string } | null }
 type RpcStub = (args: Record<string, unknown>) => RpcResult
@@ -26,6 +28,9 @@ interface World {
   deletedUsers: string[]
   /** Recovery links asked for: who for, and where the link leads back to. */
   recoveryLinks: { email: string; redirectTo: string }[]
+  passwordUpdates: { userId: string; password: string }[]
+  uploads: { bucket: string; path: string; contentType: string; size: number }[]
+  removed: string[]
   logs: LogEntry[]
 }
 
@@ -34,6 +39,8 @@ interface WorldOptions {
   rpc?: Record<string, RpcStub>
   createUserError?: string
   recoveryLinkError?: string
+  passwordError?: string
+  uploadFails?: boolean
   turnstileSuccess?: boolean
   env?: Record<string, string>
 }
@@ -54,6 +61,9 @@ function makeWorld(options: WorldOptions = {}): World {
     createdUsers: [],
     deletedUsers: [],
     recoveryLinks: [],
+    passwordUpdates: [],
+    uploads: [],
+    removed: [],
     logs: [],
     deps: undefined as unknown as Deps,
   }
@@ -80,6 +90,9 @@ function makeWorld(options: WorldOptions = {}): World {
     admin_owner_email: () => ok('ada@shop.test'),
     admin_revoke_activation_code: () => ok(null),
     admin_set_business_status: () => ok(null),
+    staff_reset_precheck: () => ok(null),
+    owner_precheck: () => ok('biz-1'),
+    set_business_logo: () => ok('biz-1/old-logo.png'),
     ...options.rpc,
   }
 
@@ -113,6 +126,23 @@ function makeWorld(options: WorldOptions = {}): World {
         link: 'https://project.supabase.co/auth/v1/verify?token=SECRET-TOKEN&type=recovery',
         errorCode: null,
       })
+    },
+    updateUserPassword(userId, password) {
+      world.calls.push('updateUserPassword')
+      if (options.passwordError) return Promise.resolve({ errorCode: options.passwordError })
+      world.passwordUpdates.push({ userId, password })
+      return Promise.resolve({ errorCode: null })
+    },
+    uploadObject(bucket, path, bytes, contentType) {
+      world.calls.push('uploadObject')
+      if (options.uploadFails) return Promise.resolve({ ok: false })
+      world.uploads.push({ bucket, path, contentType, size: bytes.length })
+      return Promise.resolve({ ok: true })
+    },
+    removeObjects(_bucket, paths) {
+      world.calls.push('removeObjects')
+      world.removed.push(...paths)
+      return Promise.resolve({ ok: true })
     },
   }
 
@@ -712,3 +742,155 @@ Deno.test(
     assertEquals(limits[0], 10)
   },
 )
+
+// ---------------------------------------------------------------------------
+// reset-staff-password
+// ---------------------------------------------------------------------------
+
+const STAFF_ID = '5e1f0000-0000-4000-8000-000000000001'
+
+Deno.test('an owner sets a new password for their staff member, never logged', async () => {
+  const world = makeWorld({ actor: OWNER })
+  const response = await resetStaffPassword(
+    post({ staffId: STAFF_ID, newPassword: 'second-pass-2' }),
+    world.deps,
+  )
+  assertEquals(response.status, 200)
+  assertEquals(world.rpcArgs.staff_reset_precheck, { p_owner_id: 'owner-1', p_staff_id: STAFF_ID })
+  assertEquals(world.passwordUpdates, [{ userId: STAFF_ID, password: 'second-pass-2' }])
+  assert(!JSON.stringify(world.logs).includes('second-pass-2'))
+})
+
+Deno.test('a short password is weak, and nothing changes', async () => {
+  const world = makeWorld({ actor: OWNER })
+  const response = await resetStaffPassword(
+    post({ staffId: STAFF_ID, newPassword: 'short' }),
+    world.deps,
+  )
+  assertEquals(await errorCode(response), 'weak_password')
+  assertEquals(world.passwordUpdates, [])
+})
+
+Deno.test('the database decides whose password an owner may reset', async () => {
+  for (const [code, status] of [
+    ['not_found', 404],
+    ['permission_denied', 403],
+    ['business_suspended', 403],
+  ] as const) {
+    const world = makeWorld({ actor: OWNER, rpc: { staff_reset_precheck: () => refuse(code) } })
+    const response = await resetStaffPassword(
+      post({ staffId: STAFF_ID, newPassword: 'second-pass-2' }),
+      world.deps,
+    )
+    assertEquals(response.status, status)
+    assertEquals(await errorCode(response), code)
+    assertEquals(world.passwordUpdates, [])
+  }
+})
+
+Deno.test('resetting a password needs a signed-in caller', async () => {
+  const world = makeWorld({ actor: null })
+  const response = await resetStaffPassword(
+    post({ staffId: STAFF_ID, newPassword: 'second-pass-2' }),
+    world.deps,
+  )
+  assertEquals(await errorCode(response), 'unauthenticated')
+  assertEquals(world.calls, [])
+})
+
+// ---------------------------------------------------------------------------
+// update-business-logo
+// ---------------------------------------------------------------------------
+
+const TINY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=='
+
+function dataUrl(type: string, bytes: number[], padTo = 0): string {
+  const all = [...bytes, ...Array<number>(Math.max(0, padTo - bytes.length)).fill(0)]
+  return `data:${type};base64,${btoa(String.fromCharCode(...all))}`
+}
+
+Deno.test('an owner saves a logo in their own folder, and the old one is removed', async () => {
+  const world = makeWorld({ actor: OWNER })
+  const response = await updateBusinessLogo(post({ logo: TINY_PNG }), world.deps)
+  assertEquals(response.status, 200)
+
+  const [upload] = world.uploads
+  assertEquals(upload?.bucket, 'logos')
+  assertEquals(upload?.contentType, 'image/png')
+  assert(/^biz-1\/[0-9a-f-]{36}\.png$/.test(upload!.path), 'a new random name under the business')
+  assertEquals(world.rpcArgs.set_business_logo, {
+    p_owner_id: 'owner-1',
+    p_logo_path: upload!.path,
+  })
+  assertEquals(world.removed, ['biz-1/old-logo.png'])
+  assertEquals(await response.json(), { data: { logoPath: upload!.path } })
+})
+
+Deno.test('a logo larger than the usual 10 KB body still arrives', async () => {
+  const world = makeWorld({ actor: OWNER })
+  const big = dataUrl('image/png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 60_000)
+  const response = await updateBusinessLogo(post({ logo: big }), world.deps)
+  assertEquals(response.status, 200)
+  assertEquals(world.uploads[0]?.size, 60_000)
+})
+
+Deno.test('removing the logo stores nothing and deletes the old file', async () => {
+  const world = makeWorld({ actor: OWNER })
+  const response = await updateBusinessLogo(post({ logo: null }), world.deps)
+  assertEquals(response.status, 200)
+  assertEquals(world.uploads, [])
+  assertEquals(world.rpcArgs.set_business_logo, { p_owner_id: 'owner-1', p_logo_path: null })
+  assertEquals(world.removed, ['biz-1/old-logo.png'])
+})
+
+Deno.test('anything but a small real picture is refused before it is stored', async () => {
+  const jpegBytes = [0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]
+  for (const logo of [
+    'not-an-image',
+    'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+    dataUrl('image/png', jpegBytes), // says PNG, is a JPEG
+    dataUrl('image/gif', [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0]),
+  ]) {
+    const world = makeWorld({ actor: OWNER })
+    const response = await updateBusinessLogo(post({ logo }), world.deps)
+    assertEquals(await errorCode(response), 'validation', logo.slice(0, 30))
+    assertEquals(world.uploads, [])
+    assert(!world.calls.includes('rpc:set_business_logo'))
+  }
+  // A real JPEG is fine.
+  const world = makeWorld({ actor: OWNER })
+  const response = await updateBusinessLogo(
+    post({ logo: dataUrl('image/jpeg', jpegBytes) }),
+    world.deps,
+  )
+  assertEquals(response.status, 200)
+  assert(world.uploads[0]!.path.endsWith('.jpg'))
+})
+
+Deno.test('only an owner of a business with access may change its logo', async () => {
+  const world = makeWorld({
+    actor: OWNER,
+    rpc: { owner_precheck: () => refuse('permission_denied') },
+  })
+  const response = await updateBusinessLogo(post({ logo: TINY_PNG }), world.deps)
+  assertEquals(await errorCode(response), 'permission_denied')
+  assertEquals(world.uploads, [])
+})
+
+Deno.test('a logo the database refuses is not left behind in Storage', async () => {
+  const world = makeWorld({
+    actor: OWNER,
+    rpc: { set_business_logo: () => refuse('business_suspended') },
+  })
+  const response = await updateBusinessLogo(post({ logo: TINY_PNG }), world.deps)
+  assertEquals(await errorCode(response), 'business_suspended')
+  assertEquals(world.removed, [world.uploads[0]!.path])
+})
+
+Deno.test('a failed upload changes nothing', async () => {
+  const world = makeWorld({ actor: OWNER, uploadFails: true })
+  const response = await updateBusinessLogo(post({ logo: TINY_PNG }), world.deps)
+  assertEquals(await errorCode(response), 'server')
+  assert(!world.calls.includes('rpc:set_business_logo'))
+})
