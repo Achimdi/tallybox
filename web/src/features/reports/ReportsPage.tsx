@@ -170,7 +170,9 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
                   label: method.label,
                   value: report.byPaymentMethod[method.value].sales,
                   valueText: money(report.byPaymentMethod[method.value].sales),
-                  detail: `${report.byPaymentMethod[method.value].orders} orders`,
+                  detail: `${report.byPaymentMethod[method.value].orders} ${
+                    report.byPaymentMethod[method.value].orders === 1 ? 'order' : 'orders'
+                  }`,
                 }))}
               />
             </Card>
