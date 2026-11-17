@@ -170,7 +170,8 @@ select throws_ok($$ select public.set_staff_active('aaaaaaaa-0000-0000-0000-0000
   'P0001', 'permission_denied', 'staff cannot turn accounts off');
 
 select tests.clear_authentication();
-insert into auth.sessions (user_id) values ('aaaaaaaa-0000-0000-0000-0000000000a2');
+-- The real auth.sessions table has no default for id, so give one.
+insert into auth.sessions (id, user_id) values (gen_random_uuid(), 'aaaaaaaa-0000-0000-0000-0000000000a2');
 
 select tests.authenticate_as('aaaaaaaa-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.set_staff_active('aaaaaaaa-0000-0000-0000-0000000000a2', false) $$,

@@ -43,8 +43,9 @@ create table auth.users (
   last_sign_in_at timestamptz
 );
 
+-- Like the real table: no default for id (tests must give one).
 create table auth.sessions (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
   created_at timestamptz not null default now()
 );
