@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addDays } from '@/lib/dates'
+import { addDays, dateKey } from '@/lib/dates'
 import { AppError, type AppErrorCode } from '@/lib/errors'
 import type { ItemInput, TallyboxApi } from '../types'
-import type { ShopFixture } from './orders.contract'
+import { hasFeatures, type ShopFeature, type ShopFixture } from './orders.contract'
 
 /**
  * The contract for running a business: items, stock, voids, the owner's order
@@ -23,7 +23,16 @@ async function errorOf(promise: Promise<unknown>): Promise<AppError> {
 const codeOf = async (promise: Promise<unknown>): Promise<AppErrorCode> =>
   (await errorOf(promise)).code
 
-export function describeOwnerContract(name: string, setup: () => Promise<ShopFixture>) {
+/**
+ * `features` lists the parts the implementation has so far; left out, it has
+ * everything (the demo). Tests needing a part not built yet are skipped.
+ */
+export function describeOwnerContract(
+  name: string,
+  setup: () => Promise<ShopFixture>,
+  features?: readonly ShopFeature[],
+) {
+  const has = (...needed: readonly ShopFeature[]) => hasFeatures(features, needed)
   describe(`TallyboxApi contract: running the business (${name})`, () => {
     let fixture: ShopFixture
     let owner: TallyboxApi
@@ -37,7 +46,12 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
       if (result.kind !== 'user') throw new Error('fixture owner could not sign in')
       staff = fixture.otherBrowser()
       await staff.auth.signIn(fixture.staffA)
-      today = (await owner.reports.dashboard()).today.dateKey
+      // The business's own day, from its time zone (works before the dashboard exists).
+      const session = await owner.auth.getSession()
+      today = dateKey(
+        new Date(),
+        session?.kind === 'user' ? (session.user.timezone ?? 'UTC') : 'UTC',
+      )
     })
 
     const newItem = (overrides: Partial<ItemInput> = {}): ItemInput => ({
@@ -135,16 +149,19 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
       expect(await codeOf(staff.items.archive(first.id))).toBe('permission_denied')
     })
 
-    it('archives an item so it cannot be sold, and restores it', async () => {
-      const item = await owner.items.upsert(newItem())
-      await owner.items.archive(item.id)
-      expect((await staff.items.list()).some((entry) => entry.id === item.id)).toBe(false)
-      expect((await owner.items.list()).find((entry) => entry.id === item.id)?.active).toBe(false)
-      expect(await codeOf(sell(staff, item.id, 1))).toBe('item_unavailable')
+    it.skipIf(!has('orders'))(
+      'archives an item so it cannot be sold, and restores it',
+      async () => {
+        const item = await owner.items.upsert(newItem())
+        await owner.items.archive(item.id)
+        expect((await staff.items.list()).some((entry) => entry.id === item.id)).toBe(false)
+        expect((await owner.items.list()).find((entry) => entry.id === item.id)?.active).toBe(false)
+        expect(await codeOf(sell(staff, item.id, 1))).toBe('item_unavailable')
 
-      await owner.items.restore(item.id)
-      await expect(sell(staff, item.id, 1)).resolves.toMatchObject({ status: 'completed' })
-    })
+        await owner.items.restore(item.id)
+        await expect(sell(staff, item.id, 1)).resolves.toMatchObject({ status: 'completed' })
+      },
+    )
 
     // --- Restocks and adjustments ------------------------------------------
 
@@ -276,90 +293,104 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
 
     // --- Voids and the order list -------------------------------------------
 
-    it('voids an order: stock comes back, the order stays, and only once', async () => {
-      const item = await owner.items.upsert(newItem())
-      const order = await sell(staff, item.id, 3)
-      expect(await quantity(item.id)).toBe(17)
+    it.skipIf(!has('orders'))(
+      'voids an order: stock comes back, the order stays, and only once',
+      async () => {
+        const item = await owner.items.upsert(newItem())
+        const order = await sell(staff, item.id, 3)
+        expect(await quantity(item.id)).toBe(17)
 
-      expect(await codeOf(owner.orders.void({ orderId: order.id, reason: '  ' }))).toBe(
-        'validation',
-      )
-      expect(await codeOf(staff.orders.void({ orderId: order.id, reason: 'Mistake' }))).toBe(
-        'permission_denied',
-      )
+        expect(await codeOf(owner.orders.void({ orderId: order.id, reason: '  ' }))).toBe(
+          'validation',
+        )
+        expect(await codeOf(staff.orders.void({ orderId: order.id, reason: 'Mistake' }))).toBe(
+          'permission_denied',
+        )
 
-      const voided = await owner.orders.void({ orderId: order.id, reason: 'Customer returned it' })
-      expect(voided).toMatchObject({
-        status: 'voided',
-        voidReason: 'Customer returned it',
-        total: order.total,
-      })
-      expect(voided.voidedByName).toBeTruthy()
-      expect(await quantity(item.id)).toBe(20)
-      expect(await codeOf(owner.orders.void({ orderId: order.id, reason: 'Again' }))).toBe(
-        'conflict',
-      )
-      await expectLedgerMatches(item.id)
-    })
+        const voided = await owner.orders.void({
+          orderId: order.id,
+          reason: 'Customer returned it',
+        })
+        expect(voided).toMatchObject({
+          status: 'voided',
+          voidReason: 'Customer returned it',
+          total: order.total,
+        })
+        expect(voided.voidedByName).toBeTruthy()
+        expect(await quantity(item.id)).toBe(20)
+        expect(await codeOf(owner.orders.void({ orderId: order.id, reason: 'Again' }))).toBe(
+          'conflict',
+        )
+        await expectLedgerMatches(item.id)
+      },
+    )
 
-    it('lists orders by date, staff, status, payment method and number', async () => {
-      const item = await owner.items.upsert(newItem({ openingQuantity: 50 }))
-      const a = await sell(staff, item.id, 1)
-      const b = await sell(owner, item.id, 1)
-      await owner.orders.void({ orderId: b.id, reason: 'Test' })
+    it.skipIf(!has('orders'))(
+      'lists orders by date, staff, status, payment method and number',
+      async () => {
+        const item = await owner.items.upsert(newItem({ openingQuantity: 50 }))
+        const a = await sell(staff, item.id, 1)
+        const b = await sell(owner, item.id, 1)
+        await owner.orders.void({ orderId: b.id, reason: 'Test' })
 
-      const todays = await owner.orders.list({ from: today, to: today, limit: 100 })
-      expect(todays.rows.map((order) => order.id)).toEqual(expect.arrayContaining([a.id, b.id]))
-      expect(todays.rows[0]!.createdAt >= todays.rows.at(-1)!.createdAt).toBe(true)
+        const todays = await owner.orders.list({ from: today, to: today, limit: 100 })
+        expect(todays.rows.map((order) => order.id)).toEqual(expect.arrayContaining([a.id, b.id]))
+        expect(todays.rows[0]!.createdAt >= todays.rows.at(-1)!.createdAt).toBe(true)
 
-      const staffId = a.staffId
-      expect(
-        (await owner.orders.list({ from: today, to: today, staffId, limit: 100 })).rows.every(
-          (order) => order.staffId === staffId,
-        ),
-      ).toBe(true)
-      expect(
-        (
-          await owner.orders.list({ from: today, to: today, status: 'voided', limit: 100 })
-        ).rows.map((order) => order.id),
-      ).toContain(b.id)
-      expect(
-        (await owner.orders.list({ from: today, to: today, search: `#${a.orderNumber}` })).rows.map(
-          (order) => order.id,
-        ),
-      ).toEqual([a.id])
-      expect(
-        (await owner.orders.list({ from: addDays(today, 1), to: addDays(today, 2) })).total,
-      ).toBe(0)
+        const staffId = a.staffId
+        expect(
+          (await owner.orders.list({ from: today, to: today, staffId, limit: 100 })).rows.every(
+            (order) => order.staffId === staffId,
+          ),
+        ).toBe(true)
+        expect(
+          (
+            await owner.orders.list({ from: today, to: today, status: 'voided', limit: 100 })
+          ).rows.map((order) => order.id),
+        ).toContain(b.id)
+        expect(
+          (
+            await owner.orders.list({ from: today, to: today, search: `#${a.orderNumber}` })
+          ).rows.map((order) => order.id),
+        ).toEqual([a.id])
+        expect(
+          (await owner.orders.list({ from: addDays(today, 1), to: addDays(today, 2) })).total,
+        ).toBe(0)
 
-      const paged = await owner.orders.list({ from: addDays(today, -30), to: today, limit: 2 })
-      expect(paged.rows).toHaveLength(2)
-      expect(paged.total).toBeGreaterThanOrEqual(2)
-      expect(await codeOf(staff.orders.list({ from: today, to: today }))).toBe('permission_denied')
-      expect(await codeOf(owner.orders.list({ from: today, to: addDays(today, -1) }))).toBe(
-        'validation',
-      )
-    })
+        const paged = await owner.orders.list({ from: addDays(today, -30), to: today, limit: 2 })
+        expect(paged.rows).toHaveLength(2)
+        expect(paged.total).toBeGreaterThanOrEqual(2)
+        expect(await codeOf(staff.orders.list({ from: today, to: today }))).toBe(
+          'permission_denied',
+        )
+        expect(await codeOf(owner.orders.list({ from: today, to: addDays(today, -1) }))).toBe(
+          'validation',
+        )
+      },
+    )
 
     // --- Dashboard ---------------------------------------------------------
 
-    it("adds up today's sales from completed orders, and counts voids apart", async () => {
-      const before = await owner.reports.dashboard()
-      const item = await owner.items.upsert(newItem({ price: 10000 }))
-      await sell(staff, item.id, 2)
-      const voided = await sell(staff, item.id, 1)
-      await owner.orders.void({ orderId: voided.id, reason: 'Test' })
+    it.skipIf(!has('orders', 'dashboard'))(
+      "adds up today's sales from completed orders, and counts voids apart",
+      async () => {
+        const before = await owner.reports.dashboard()
+        const item = await owner.items.upsert(newItem({ price: 10000 }))
+        await sell(staff, item.id, 2)
+        const voided = await sell(staff, item.id, 1)
+        await owner.orders.void({ orderId: voided.id, reason: 'Test' })
 
-      const after = await owner.reports.dashboard()
-      expect(after.today.sales - before.today.sales).toBe(20000)
-      expect(after.today.orders - before.today.orders).toBe(1)
-      expect(after.today.voided - before.today.voided).toBe(1)
-      expect(after.today.byPaymentMethod.cash - before.today.byPaymentMethod.cash).toBe(20000)
-      expect(after.yesterday.dateKey).toBe(addDays(today, -1))
-      expect(await codeOf(staff.reports.dashboard())).toBe('permission_denied')
-    })
+        const after = await owner.reports.dashboard()
+        expect(after.today.sales - before.today.sales).toBe(20000)
+        expect(after.today.orders - before.today.orders).toBe(1)
+        expect(after.today.voided - before.today.voided).toBe(1)
+        expect(after.today.byPaymentMethod.cash - before.today.byPaymentMethod.cash).toBe(20000)
+        expect(after.yesterday.dateKey).toBe(addDays(today, -1))
+        expect(await codeOf(staff.reports.dashboard())).toBe('permission_denied')
+      },
+    )
 
-    it('lists low-stock items, emptiest first', async () => {
+    it.skipIf(!has('dashboard'))('lists low-stock items, emptiest first', async () => {
       const item = await owner.items.upsert(newItem({ openingQuantity: 1, lowStockLevel: 5 }))
       const { lowStock } = await owner.reports.dashboard()
       expect(lowStock.map((entry) => entry.id)).toContain(item.id)
@@ -369,159 +400,178 @@ export function describeOwnerContract(name: string, setup: () => Promise<ShopFix
 
     // --- Staff accounts ----------------------------------------------------
 
-    it('resets a staff password and turns an account off and on', async () => {
-      const member = await owner.staff.create({
-        displayName: 'Temp Worker',
-        username: 'temp',
-        password: 'first-pass-1',
-      })
-      await owner.staff.resetPassword({ staffId: member.id, newPassword: 'second-pass-2' })
-      expect(
-        await codeOf(owner.staff.resetPassword({ staffId: member.id, newPassword: 'short' })),
-      ).toBe('weak_password')
+    it.skipIf(!has('staffManagement'))(
+      'resets a staff password and turns an account off and on',
+      async () => {
+        const member = await owner.staff.create({
+          displayName: 'Temp Worker',
+          username: 'temp',
+          password: 'first-pass-1',
+        })
+        await owner.staff.resetPassword({ staffId: member.id, newPassword: 'second-pass-2' })
+        expect(
+          await codeOf(owner.staff.resetPassword({ staffId: member.id, newPassword: 'short' })),
+        ).toBe('weak_password')
 
-      const login = fixture.otherBrowser()
-      const staffLogin = { ...fixture.staffA, username: 'temp' }
-      expect(await codeOf(login.auth.signIn({ ...staffLogin, password: 'first-pass-1' }))).toBe(
-        'invalid_credentials',
-      )
-      expect((await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).kind).toBe(
-        'user',
-      )
+        const login = fixture.otherBrowser()
+        const staffLogin = { ...fixture.staffA, username: 'temp' }
+        expect(await codeOf(login.auth.signIn({ ...staffLogin, password: 'first-pass-1' }))).toBe(
+          'invalid_credentials',
+        )
+        expect((await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).kind).toBe(
+          'user',
+        )
 
-      expect(await owner.staff.setActive({ staffId: member.id, active: false })).toMatchObject({
-        active: false,
-      })
-      expect(await login.auth.getSession()).toMatchObject({
-        kind: 'blocked',
-        notice: { reason: 'disabled' },
-      })
-      expect(await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).toMatchObject({
-        kind: 'blocked',
-      })
+        expect(await owner.staff.setActive({ staffId: member.id, active: false })).toMatchObject({
+          active: false,
+        })
+        expect(await login.auth.getSession()).toMatchObject({
+          kind: 'blocked',
+          notice: { reason: 'disabled' },
+        })
+        expect(await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).toMatchObject(
+          {
+            kind: 'blocked',
+          },
+        )
 
-      await owner.staff.setActive({ staffId: member.id, active: true })
-      expect((await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).kind).toBe(
-        'user',
-      )
-      expect(await codeOf(staff.staff.setActive({ staffId: member.id, active: false }))).toBe(
-        'permission_denied',
-      )
-    })
+        await owner.staff.setActive({ staffId: member.id, active: true })
+        expect((await login.auth.signIn({ ...staffLogin, password: 'second-pass-2' })).kind).toBe(
+          'user',
+        )
+        expect(await codeOf(staff.staff.setActive({ staffId: member.id, active: false }))).toBe(
+          'permission_denied',
+        )
+      },
+    )
 
     // --- Business settings --------------------------------------------------
 
-    it('lets the owner change settings, which everyone in the business then sees', async () => {
-      const current = await owner.business.get()
-      const updated = await owner.business.update({
-        name: ' Sunrise  Chemists ',
-        currencyCode: 'ghs',
-        timezone: 'Africa/Accra',
-        address: '1 New Road',
-        phone: '0800 000 0000',
-        receiptFooter: 'Thanks!',
-        defaultLowStockLevel: 7,
-      })
-      expect(updated).toMatchObject({
-        name: 'Sunrise Chemists',
-        currencyCode: 'GHS',
-        timezone: 'Africa/Accra',
-        receiptFooter: 'Thanks!',
-        defaultLowStockLevel: 7,
-        businessCode: current.businessCode,
-        logoUrl: current.logoUrl,
-      })
-      expect(await staff.business.get()).toMatchObject({ name: 'Sunrise Chemists' })
-      expect(await owner.auth.getSession()).toMatchObject({
-        user: { businessName: 'Sunrise Chemists', currencyCode: 'GHS', timezone: 'Africa/Accra' },
-      })
+    it.skipIf(!has('settings'))(
+      'lets the owner change settings, which everyone in the business then sees',
+      async () => {
+        const current = await owner.business.get()
+        const updated = await owner.business.update({
+          name: ' Sunrise  Chemists ',
+          currencyCode: 'ghs',
+          timezone: 'Africa/Accra',
+          address: '1 New Road',
+          phone: '0800 000 0000',
+          receiptFooter: 'Thanks!',
+          defaultLowStockLevel: 7,
+        })
+        expect(updated).toMatchObject({
+          name: 'Sunrise Chemists',
+          currencyCode: 'GHS',
+          timezone: 'Africa/Accra',
+          receiptFooter: 'Thanks!',
+          defaultLowStockLevel: 7,
+          businessCode: current.businessCode,
+          logoUrl: current.logoUrl,
+        })
+        expect(await staff.business.get()).toMatchObject({ name: 'Sunrise Chemists' })
+        expect(await owner.auth.getSession()).toMatchObject({
+          user: { businessName: 'Sunrise Chemists', currencyCode: 'GHS', timezone: 'Africa/Accra' },
+        })
 
-      const settings = {
-        name: 'Sunrise Chemists',
-        currencyCode: 'GHS',
-        timezone: 'Africa/Accra',
-        address: '',
-        phone: '',
-        receiptFooter: '',
-        defaultLowStockLevel: 7,
-      }
-      expect(await codeOf(owner.business.update({ ...settings, currencyCode: 'XYZW' }))).toBe(
-        'validation',
-      )
-      expect(await codeOf(owner.business.update({ ...settings, timezone: 'Mars/Olympus' }))).toBe(
-        'validation',
-      )
-      expect(await codeOf(owner.business.update({ ...settings, logo: 'not-an-image' }))).toBe(
-        'validation',
-      )
-      expect(await codeOf(staff.business.update(settings))).toBe('permission_denied')
+        const settings = {
+          name: 'Sunrise Chemists',
+          currencyCode: 'GHS',
+          timezone: 'Africa/Accra',
+          address: '',
+          phone: '',
+          receiptFooter: '',
+          defaultLowStockLevel: 7,
+        }
+        expect(await codeOf(owner.business.update({ ...settings, currencyCode: 'XYZW' }))).toBe(
+          'validation',
+        )
+        expect(await codeOf(owner.business.update({ ...settings, timezone: 'Mars/Olympus' }))).toBe(
+          'validation',
+        )
+        expect(await codeOf(owner.business.update({ ...settings, logo: 'not-an-image' }))).toBe(
+          'validation',
+        )
+        expect(await codeOf(staff.business.update(settings))).toBe('permission_denied')
 
-      const tinyPng =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=='
-      expect((await owner.business.update({ ...settings, logo: tinyPng })).logoUrl).toBe(tinyPng)
-      expect((await owner.business.update(settings)).logoUrl).toBe(tinyPng)
-      expect((await owner.business.update({ ...settings, logo: null })).logoUrl).toBeNull()
-    })
+        const tinyPng =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=='
+        expect((await owner.business.update({ ...settings, logo: tinyPng })).logoUrl).toBe(tinyPng)
+        expect((await owner.business.update(settings)).logoUrl).toBe(tinyPng)
+        expect((await owner.business.update({ ...settings, logo: null })).logoUrl).toBeNull()
+      },
+    )
 
     // --- Reports ---------------------------------------------------------------
 
-    it('reports a range: sales, average, payment methods, staff, items and voids', async () => {
-      const range = { from: today, to: today }
-      const before = await owner.reports.summary(range)
-      const item = await owner.items.upsert(newItem({ price: 25000, costPrice: 10000 }))
+    it.skipIf(!has('orders', 'reports'))(
+      'reports a range: sales, average, payment methods, staff, items and voids',
+      async () => {
+        const range = { from: today, to: today }
+        const before = await owner.reports.summary(range)
+        const item = await owner.items.upsert(newItem({ price: 25000, costPrice: 10000 }))
 
-      await sell(staff, item.id, 2)
-      const second = await sell(owner, item.id, 1)
-      const voided = await sell(staff, item.id, 1)
-      await owner.orders.void({ orderId: voided.id, reason: 'Contract' })
+        await sell(staff, item.id, 2)
+        const second = await sell(owner, item.id, 1)
+        const voided = await sell(staff, item.id, 1)
+        await owner.orders.void({ orderId: voided.id, reason: 'Contract' })
 
-      const after = await owner.reports.summary(range)
-      expect(after.sales - before.sales).toBe(75000)
-      expect(after.orders - before.orders).toBe(2)
-      expect(after.voided - before.voided).toBe(1)
-      expect(after.voidedTotal - before.voidedTotal).toBe(25000)
-      expect(after.averageOrder).toBe(
-        after.orders === 0 ? 0 : Math.round(after.sales / after.orders),
-      )
-      expect(after.byPaymentMethod.cash.sales - before.byPaymentMethod.cash.sales).toBe(75000)
-      expect(after.byDay).toEqual([expect.objectContaining({ dateKey: today, sales: after.sales })])
-      expect(after.items.find((entry) => entry.itemId === item.id)).toMatchObject({
-        quantity: 3,
-        sales: 75000,
-      })
-      const staffTotal = after.byStaff.reduce((sum, entry) => sum + entry.sales, 0)
-      expect(staffTotal).toBe(after.sales)
-      expect(after.byStaff.some((entry) => entry.staffName === second.staffName)).toBe(true)
-      // Stock value now: the new item has 20 - 3 = 17 left at a cost of 100.00.
-      expect(after.stockValue?.atCost).toBeGreaterThanOrEqual(17 * 10000)
-    })
+        const after = await owner.reports.summary(range)
+        expect(after.sales - before.sales).toBe(75000)
+        expect(after.orders - before.orders).toBe(2)
+        expect(after.voided - before.voided).toBe(1)
+        expect(after.voidedTotal - before.voidedTotal).toBe(25000)
+        expect(after.averageOrder).toBe(
+          after.orders === 0 ? 0 : Math.round(after.sales / after.orders),
+        )
+        expect(after.byPaymentMethod.cash.sales - before.byPaymentMethod.cash.sales).toBe(75000)
+        expect(after.byDay).toEqual([
+          expect.objectContaining({ dateKey: today, sales: after.sales }),
+        ])
+        expect(after.items.find((entry) => entry.itemId === item.id)).toMatchObject({
+          quantity: 3,
+          sales: 75000,
+        })
+        const staffTotal = after.byStaff.reduce((sum, entry) => sum + entry.sales, 0)
+        expect(staffTotal).toBe(after.sales)
+        expect(after.byStaff.some((entry) => entry.staffName === second.staffName)).toBe(true)
+        // Stock value now: the new item has 20 - 3 = 17 left at a cost of 100.00.
+        expect(after.stockValue?.atCost).toBeGreaterThanOrEqual(17 * 10000)
+      },
+    )
 
-    it('lists items that sold nothing at the end, and fills in quiet days', async () => {
-      const item = await owner.items.upsert(newItem())
-      const report = await owner.reports.summary({ from: addDays(today, -2), to: today })
-      expect(report.byDay.map((day) => day.dateKey)).toEqual([
-        addDays(today, -2),
-        addDays(today, -1),
-        today,
-      ])
-      const last = report.items.slice(report.items.findIndex((entry) => entry.sales === 0))
-      expect(last.every((entry) => entry.sales === 0)).toBe(true)
-      expect(last.some((entry) => entry.itemId === item.id)).toBe(true)
-    })
+    it.skipIf(!has('reports'))(
+      'lists items that sold nothing at the end, and fills in quiet days',
+      async () => {
+        const item = await owner.items.upsert(newItem())
+        const report = await owner.reports.summary({ from: addDays(today, -2), to: today })
+        expect(report.byDay.map((day) => day.dateKey)).toEqual([
+          addDays(today, -2),
+          addDays(today, -1),
+          today,
+        ])
+        const last = report.items.slice(report.items.findIndex((entry) => entry.sales === 0))
+        expect(last.every((entry) => entry.sales === 0)).toBe(true)
+        expect(last.some((entry) => entry.itemId === item.id)).toBe(true)
+      },
+    )
 
-    it('exports every order in a range, oldest first, voids included', async () => {
-      const item = await owner.items.upsert(newItem())
-      const first = await sell(staff, item.id, 1)
-      const second = await sell(staff, item.id, 1)
-      await owner.orders.void({ orderId: second.id, reason: 'Contract' })
-      const { orders, truncated } = await owner.reports.exportOrders({ from: today, to: today })
-      expect(truncated).toBe(false)
-      const ids = orders.map((order) => order.id)
-      expect(ids.indexOf(first.id)).toBeLessThan(ids.indexOf(second.id))
-      expect(orders.find((order) => order.id === second.id)?.status).toBe('voided')
-    })
+    it.skipIf(!has('orders', 'reports'))(
+      'exports every order in a range, oldest first, voids included',
+      async () => {
+        const item = await owner.items.upsert(newItem())
+        const first = await sell(staff, item.id, 1)
+        const second = await sell(staff, item.id, 1)
+        await owner.orders.void({ orderId: second.id, reason: 'Contract' })
+        const { orders, truncated } = await owner.reports.exportOrders({ from: today, to: today })
+        expect(truncated).toBe(false)
+        const ids = orders.map((order) => order.id)
+        expect(ids.indexOf(first.id)).toBeLessThan(ids.indexOf(second.id))
+        expect(orders.find((order) => order.id === second.id)?.status).toBe('voided')
+      },
+    )
 
-    it('refuses bad ranges and keeps reports from staff', async () => {
+    it.skipIf(!has('reports'))('refuses bad ranges and keeps reports from staff', async () => {
       for (const range of [
         { from: today, to: addDays(today, -1) },
         { from: 'yesterday', to: today },

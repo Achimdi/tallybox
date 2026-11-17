@@ -20,6 +20,17 @@ export interface ShopFixture {
   staffB: SignInInput
 }
 
+/** The parts of the app a contract test can need, for implementations built step by step. */
+export type ShopFeature = 'orders' | 'dashboard' | 'reports' | 'staffManagement' | 'settings'
+
+/** True when `available` (left out: everything) has every needed part. */
+export function hasFeatures(
+  available: readonly ShopFeature[] | undefined,
+  needed: readonly ShopFeature[],
+): boolean {
+  return !available || needed.every((feature) => available.includes(feature))
+}
+
 async function errorOf(promise: Promise<unknown>): Promise<AppError> {
   try {
     await promise

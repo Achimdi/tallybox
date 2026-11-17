@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SupplyProblem } from '@/domain/supplies'
+import { dateKey } from '@/lib/dates'
 import { AppError, type AppErrorCode } from '@/lib/errors'
 import type { ItemInput, SupplyInput, TallyboxApi } from '../types'
-import type { ShopFixture } from './orders.contract'
+import { hasFeatures, type ShopFeature, type ShopFixture } from './orders.contract'
 
 /**
  * The contract for shared supplies: stock counted by packaging or materials,
@@ -24,20 +25,35 @@ async function errorOf(promise: Promise<unknown>): Promise<AppError> {
 const codeOf = async (promise: Promise<unknown>): Promise<AppErrorCode> =>
   (await errorOf(promise)).code
 
-export function describeSuppliesContract(name: string, setup: () => Promise<ShopFixture>) {
+/**
+ * `features` lists the parts the implementation has so far; left out, it has
+ * everything (the demo). Tests needing a part not built yet are skipped.
+ */
+export function describeSuppliesContract(
+  name: string,
+  setup: () => Promise<ShopFixture>,
+  features?: readonly ShopFeature[],
+) {
+  const has = (...needed: readonly ShopFeature[]) => hasFeatures(features, needed)
   describe(`TallyboxApi contract: shared supplies (${name})`, () => {
+    let fixture: ShopFixture
     let owner: TallyboxApi
     let staff: TallyboxApi
     let today: string
 
     beforeEach(async () => {
-      const fixture = await setup()
+      fixture = await setup()
       owner = fixture.api
       const result = await owner.auth.signIn(fixture.owner)
       if (result.kind !== 'user') throw new Error('fixture owner could not sign in')
       staff = fixture.otherBrowser()
       await staff.auth.signIn(fixture.staffA)
-      today = (await owner.reports.dashboard()).today.dateKey
+      // The business's own day, from its time zone (works before the dashboard exists).
+      const session = await owner.auth.getSession()
+      today = dateKey(
+        new Date(),
+        session?.kind === 'user' ? (session.user.timezone ?? 'UTC') : 'UTC',
+      )
     })
 
     const tag = () => crypto.randomUUID().slice(0, 8)
@@ -164,29 +180,32 @@ export function describeSuppliesContract(name: string, setup: () => Promise<Shop
       expect((await owner.stock.movements({ supplyId: bottle.id })).total).toBe(1)
     })
 
-    it('adds up every line: 10 Coke + 10 apple juice + 10 Fanta use 30 bottles', async () => {
-      const { bottle, coke, fanta, apple } = await drinksShop()
-      const order = await sell(staff, [
-        { itemId: coke.id, quantity: 10 },
-        { itemId: apple.id, quantity: 10 },
-        { itemId: fanta.id, quantity: 10 },
-      ])
+    it.skipIf(!has('orders'))(
+      'adds up every line: 10 Coke + 10 apple juice + 10 Fanta use 30 bottles',
+      async () => {
+        const { bottle, coke, fanta, apple } = await drinksShop()
+        const order = await sell(staff, [
+          { itemId: coke.id, quantity: 10 },
+          { itemId: apple.id, quantity: 10 },
+          { itemId: fanta.id, quantity: 10 },
+        ])
 
-      expect((await supplyNow(bottle.id))?.quantity).toBe(970)
-      // "Both": apple juice's own stock goes down too.
-      expect((await itemNow(apple.id))?.quantity).toBe(790)
+        expect((await supplyNow(bottle.id))?.quantity).toBe(970)
+        // "Both": apple juice's own stock goes down too.
+        expect((await itemNow(apple.id))?.quantity).toBe(790)
 
-      // Each deduction is its own ledger entry, linked to the order and to its item.
-      const { rows } = await owner.stock.movements({ supplyId: bottle.id, type: 'sale' })
-      expect(rows).toHaveLength(3)
-      expect(rows.every((move) => move.orderId === order.id && move.delta === -10)).toBe(true)
-      expect(rows.map((move) => move.sourceItemId).sort()).toEqual(
-        [coke.id, fanta.id, apple.id].sort(),
-      )
-      // Items that don't count their own stock have no ledger entries of their own.
-      expect((await owner.stock.movements({ itemId: coke.id })).total).toBe(0)
-      await expectSupplyLedgerMatches(bottle.id)
-    })
+        // Each deduction is its own ledger entry, linked to the order and to its item.
+        const { rows } = await owner.stock.movements({ supplyId: bottle.id, type: 'sale' })
+        expect(rows).toHaveLength(3)
+        expect(rows.every((move) => move.orderId === order.id && move.delta === -10)).toBe(true)
+        expect(rows.map((move) => move.sourceItemId).sort()).toEqual(
+          [coke.id, fanta.id, apple.id].sort(),
+        )
+        // Items that don't count their own stock have no ledger entries of their own.
+        expect((await owner.stock.movements({ itemId: coke.id })).total).toBe(0)
+        await expectSupplyLedgerMatches(bottle.id)
+      },
+    )
 
     it('shows how many can be sold: the lowest of own stock and each supply ÷ units per sale', async () => {
       const bottle = await owner.supplies.upsert(newSupply({ openingQuantity: 25 }))
@@ -225,110 +244,125 @@ export function describeSuppliesContract(name: string, setup: () => Promise<Shop
       expect(seen?.supplies.map((use) => use.supplyId).sort()).toEqual([bottle.id, cap.id].sort())
     })
 
-    it('refuses an order that needs more of a supply than is left, naming who shares it', async () => {
-      const bottle = await owner.supplies.upsert(newSupply({ openingQuantity: 15 }))
-      const use = [{ supplyId: bottle.id, unitsPerSale: 1 }]
-      const coke = await owner.items.upsert(newItem({ supplies: use }))
-      const fanta = await owner.items.upsert(newItem({ supplies: use }))
+    it.skipIf(!has('orders'))(
+      'refuses an order that needs more of a supply than is left, naming who shares it',
+      async () => {
+        const bottle = await owner.supplies.upsert(newSupply({ openingQuantity: 15 }))
+        const use = [{ supplyId: bottle.id, unitsPerSale: 1 }]
+        const coke = await owner.items.upsert(newItem({ supplies: use }))
+        const fanta = await owner.items.upsert(newItem({ supplies: use }))
 
-      // Each line alone would fit; together they need 20 of 15.
-      const error = await errorOf(
-        sell(staff, [
+        // Each line alone would fit; together they need 20 of 15.
+        const error = await errorOf(
+          sell(staff, [
+            { itemId: coke.id, quantity: 10 },
+            { itemId: fanta.id, quantity: 10 },
+          ]),
+        )
+        expect(error.code).toBe('insufficient_stock')
+        const problems = error.details?.supplyProblems as SupplyProblem[]
+        expect(problems).toEqual([
+          expect.objectContaining({ supplyId: bottle.id, needed: 20, available: 15 }),
+        ])
+        expect(problems[0]?.itemNames.sort()).toEqual([coke.name, fanta.name].sort())
+        expect(error.details?.problems).toEqual([])
+
+        // Nothing changed, and exactly what is left can still be sold: never below zero.
+        expect((await supplyNow(bottle.id))?.quantity).toBe(15)
+        await sell(staff, [
           { itemId: coke.id, quantity: 10 },
-          { itemId: fanta.id, quantity: 10 },
-        ]),
-      )
-      expect(error.code).toBe('insufficient_stock')
-      const problems = error.details?.supplyProblems as SupplyProblem[]
-      expect(problems).toEqual([
-        expect.objectContaining({ supplyId: bottle.id, needed: 20, available: 15 }),
-      ])
-      expect(problems[0]?.itemNames.sort()).toEqual([coke.name, fanta.name].sort())
-      expect(error.details?.problems).toEqual([])
+          { itemId: fanta.id, quantity: 5 },
+        ])
+        expect((await supplyNow(bottle.id))?.quantity).toBe(0)
+        expect(await codeOf(sell(staff, [{ itemId: coke.id, quantity: 1 }]))).toBe(
+          'insufficient_stock',
+        )
+        await expectSupplyLedgerMatches(bottle.id)
+      },
+    )
 
-      // Nothing changed, and exactly what is left can still be sold: never below zero.
-      expect((await supplyNow(bottle.id))?.quantity).toBe(15)
-      await sell(staff, [
-        { itemId: coke.id, quantity: 10 },
-        { itemId: fanta.id, quantity: 5 },
-      ])
-      expect((await supplyNow(bottle.id))?.quantity).toBe(0)
-      expect(await codeOf(sell(staff, [{ itemId: coke.id, quantity: 1 }]))).toBe(
-        'insufficient_stock',
-      )
-      await expectSupplyLedgerMatches(bottle.id)
-    })
+    it.skipIf(!has('orders'))(
+      "says when it is the item's own stock that is short, not the supply",
+      async () => {
+        const bottle = await owner.supplies.upsert(newSupply())
+        const juice = await owner.items.upsert(
+          newItem({
+            tracksOwnStock: true,
+            openingQuantity: 3,
+            supplies: [{ supplyId: bottle.id, unitsPerSale: 1 }],
+          }),
+        )
+        const error = await errorOf(sell(staff, [{ itemId: juice.id, quantity: 4 }]))
+        expect(error.code).toBe('insufficient_stock')
+        expect(error.details?.problems).toEqual([
+          expect.objectContaining({ itemId: juice.id, available: 3, requested: 4 }),
+        ])
+        expect(error.details?.supplyProblems).toEqual([])
+      },
+    )
 
-    it("says when it is the item's own stock that is short, not the supply", async () => {
-      const bottle = await owner.supplies.upsert(newSupply())
-      const juice = await owner.items.upsert(
-        newItem({
-          tracksOwnStock: true,
-          openingQuantity: 3,
-          supplies: [{ supplyId: bottle.id, unitsPerSale: 1 }],
-        }),
-      )
-      const error = await errorOf(sell(staff, [{ itemId: juice.id, quantity: 4 }]))
-      expect(error.code).toBe('insufficient_stock')
-      expect(error.details?.problems).toEqual([
-        expect.objectContaining({ itemId: juice.id, available: 3, requested: 4 }),
-      ])
-      expect(error.details?.supplyProblems).toEqual([])
-    })
-
-    it('sells items that count nothing without any stock check or ledger entry', async () => {
-      const rice = await owner.items.upsert(newItem())
-      await sell(staff, [{ itemId: rice.id, quantity: 500 }])
-      expect((await itemNow(rice.id))?.available).toBeNull()
-      expect((await owner.stock.movements({ itemId: rice.id })).total).toBe(0)
-    })
+    it.skipIf(!has('orders'))(
+      'sells items that count nothing without any stock check or ledger entry',
+      async () => {
+        const rice = await owner.items.upsert(newItem())
+        await sell(staff, [{ itemId: rice.id, quantity: 500 }])
+        expect((await itemNow(rice.id))?.available).toBeNull()
+        expect((await owner.stock.movements({ itemId: rice.id })).total).toBe(0)
+      },
+    )
 
     // --- Voids -----------------------------------------------------------------
 
-    it("voiding puts back both the item's own stock and the supplies it used", async () => {
-      const { bottle, coke, apple } = await drinksShop()
-      const order = await sell(staff, [
-        { itemId: apple.id, quantity: 10 },
-        { itemId: coke.id, quantity: 5 },
-      ])
-      expect((await supplyNow(bottle.id))?.quantity).toBe(985)
+    it.skipIf(!has('orders'))(
+      "voiding puts back both the item's own stock and the supplies it used",
+      async () => {
+        const { bottle, coke, apple } = await drinksShop()
+        const order = await sell(staff, [
+          { itemId: apple.id, quantity: 10 },
+          { itemId: coke.id, quantity: 5 },
+        ])
+        expect((await supplyNow(bottle.id))?.quantity).toBe(985)
 
-      await owner.orders.void({ orderId: order.id, reason: 'Contract' })
-      expect((await supplyNow(bottle.id))?.quantity).toBe(1000)
-      expect((await itemNow(apple.id))?.quantity).toBe(800)
-      const { rows } = await owner.stock.movements({ supplyId: bottle.id, type: 'void' })
-      expect(rows.map((move) => move.delta).sort()).toEqual([10, 5].sort())
-      expect(rows.every((move) => move.orderId === order.id)).toBe(true)
-      await expectSupplyLedgerMatches(bottle.id)
-    })
+        await owner.orders.void({ orderId: order.id, reason: 'Contract' })
+        expect((await supplyNow(bottle.id))?.quantity).toBe(1000)
+        expect((await itemNow(apple.id))?.quantity).toBe(800)
+        const { rows } = await owner.stock.movements({ supplyId: bottle.id, type: 'void' })
+        expect(rows.map((move) => move.delta).sort()).toEqual([10, 5].sort())
+        expect(rows.every((move) => move.orderId === order.id)).toBe(true)
+        await expectSupplyLedgerMatches(bottle.id)
+      },
+    )
 
-    it("a void reverses the order's own entries, even after the item's usage changed", async () => {
-      const bottle = await owner.supplies.upsert(newSupply())
-      const cap = await owner.supplies.upsert(newSupply())
-      const input = newItem({ supplies: [{ supplyId: bottle.id, unitsPerSale: 1 }] })
-      const drink = await owner.items.upsert(input)
-      const order = await sell(staff, [{ itemId: drink.id, quantity: 10 }])
+    it.skipIf(!has('orders'))(
+      "a void reverses the order's own entries, even after the item's usage changed",
+      async () => {
+        const bottle = await owner.supplies.upsert(newSupply())
+        const cap = await owner.supplies.upsert(newSupply())
+        const input = newItem({ supplies: [{ supplyId: bottle.id, unitsPerSale: 1 }] })
+        const drink = await owner.items.upsert(input)
+        const order = await sell(staff, [{ itemId: drink.id, quantity: 10 }])
 
-      // Later the owner changes what the drink uses: two bottles and a cap.
-      await owner.items.upsert({
-        ...input,
-        supplies: [
-          { supplyId: bottle.id, unitsPerSale: 2 },
-          { supplyId: cap.id, unitsPerSale: 1 },
-        ],
-      })
-      await owner.orders.void({ orderId: order.id, reason: 'Contract' })
+        // Later the owner changes what the drink uses: two bottles and a cap.
+        await owner.items.upsert({
+          ...input,
+          supplies: [
+            { supplyId: bottle.id, unitsPerSale: 2 },
+            { supplyId: cap.id, unitsPerSale: 1 },
+          ],
+        })
+        await owner.orders.void({ orderId: order.id, reason: 'Contract' })
 
-      // Exactly the 10 bottles that order took come back; caps were never used.
-      expect((await supplyNow(bottle.id))?.quantity).toBe(1000)
-      expect((await supplyNow(cap.id))?.quantity).toBe(1000)
-      // New sales use the new amounts.
-      await sell(staff, [{ itemId: drink.id, quantity: 3 }])
-      expect((await supplyNow(bottle.id))?.quantity).toBe(994)
-      expect((await supplyNow(cap.id))?.quantity).toBe(997)
-      await expectSupplyLedgerMatches(bottle.id)
-      await expectSupplyLedgerMatches(cap.id)
-    })
+        // Exactly the 10 bottles that order took come back; caps were never used.
+        expect((await supplyNow(bottle.id))?.quantity).toBe(1000)
+        expect((await supplyNow(cap.id))?.quantity).toBe(1000)
+        // New sales use the new amounts.
+        await sell(staff, [{ itemId: drink.id, quantity: 3 }])
+        expect((await supplyNow(bottle.id))?.quantity).toBe(994)
+        expect((await supplyNow(cap.id))?.quantity).toBe(997)
+        await expectSupplyLedgerMatches(bottle.id)
+        await expectSupplyLedgerMatches(cap.id)
+      },
+    )
 
     // --- Changing how an item counts stock ---------------------------------------
 
@@ -381,7 +415,7 @@ export function describeSuppliesContract(name: string, setup: () => Promise<Shop
       expect(
         await codeOf(
           owner.items.upsert(
-            newItem({ supplies: [{ supplyId: 'no-such-supply', unitsPerSale: 1 }] }),
+            newItem({ supplies: [{ supplyId: crypto.randomUUID(), unitsPerSale: 1 }] }),
           ),
         ),
       ).toBe('not_found')
@@ -525,44 +559,47 @@ export function describeSuppliesContract(name: string, setup: () => Promise<Shop
 
     // --- Dashboard and reports -----------------------------------------------------
 
-    it('lists low supplies on the dashboard, and reports supplies used by item', async () => {
-      const bottle = await owner.supplies.upsert(
-        newSupply({ openingQuantity: 40, lowStockLevel: 30 }),
-      )
-      const use = [{ supplyId: bottle.id, unitsPerSale: 1 }]
-      const coke = await owner.items.upsert(newItem({ supplies: use }))
-      const fanta = await owner.items.upsert(newItem({ supplies: use }))
-      expect(
-        (await owner.reports.dashboard()).lowSupplies.some((supply) => supply.id === bottle.id),
-      ).toBe(false)
+    it.skipIf(!has('orders', 'dashboard', 'reports'))(
+      'lists low supplies on the dashboard, and reports supplies used by item',
+      async () => {
+        const bottle = await owner.supplies.upsert(
+          newSupply({ openingQuantity: 40, lowStockLevel: 30 }),
+        )
+        const use = [{ supplyId: bottle.id, unitsPerSale: 1 }]
+        const coke = await owner.items.upsert(newItem({ supplies: use }))
+        const fanta = await owner.items.upsert(newItem({ supplies: use }))
+        expect(
+          (await owner.reports.dashboard()).lowSupplies.some((supply) => supply.id === bottle.id),
+        ).toBe(false)
 
-      await sell(staff, [
-        { itemId: coke.id, quantity: 8 },
-        { itemId: fanta.id, quantity: 4 },
-      ])
-      const voided = await sell(staff, [{ itemId: coke.id, quantity: 3 }])
-      await owner.orders.void({ orderId: voided.id, reason: 'Contract' })
+        await sell(staff, [
+          { itemId: coke.id, quantity: 8 },
+          { itemId: fanta.id, quantity: 4 },
+        ])
+        const voided = await sell(staff, [{ itemId: coke.id, quantity: 3 }])
+        await owner.orders.void({ orderId: voided.id, reason: 'Contract' })
 
-      const low = (await owner.reports.dashboard()).lowSupplies
-      expect(low.find((supply) => supply.id === bottle.id)?.quantity).toBe(28)
+        const low = (await owner.reports.dashboard()).lowSupplies
+        expect(low.find((supply) => supply.id === bottle.id)?.quantity).toBe(28)
 
-      // The voided order used nothing.
-      const report = await owner.reports.summary({ from: today, to: today })
-      expect(report.supplies.find((supply) => supply.supplyId === bottle.id)).toEqual({
-        supplyId: bottle.id,
-        name: bottle.name,
-        unit: 'bottle',
-        used: 12,
-        remaining: 28,
-        byItem: [
-          { itemId: coke.id, name: coke.name, used: 8 },
-          { itemId: fanta.id, name: fanta.name, used: 4 },
-        ],
-      })
-      expect(report.stockValue?.suppliesAtCost).toBeGreaterThanOrEqual(28 * 6000)
-      expect(await codeOf(staff.reports.summary({ from: today, to: today }))).toBe(
-        'permission_denied',
-      )
-    })
+        // The voided order used nothing.
+        const report = await owner.reports.summary({ from: today, to: today })
+        expect(report.supplies.find((supply) => supply.supplyId === bottle.id)).toEqual({
+          supplyId: bottle.id,
+          name: bottle.name,
+          unit: 'bottle',
+          used: 12,
+          remaining: 28,
+          byItem: [
+            { itemId: coke.id, name: coke.name, used: 8 },
+            { itemId: fanta.id, name: fanta.name, used: 4 },
+          ],
+        })
+        expect(report.stockValue?.suppliesAtCost).toBeGreaterThanOrEqual(28 * 6000)
+        expect(await codeOf(staff.reports.summary({ from: today, to: today }))).toBe(
+          'permission_denied',
+        )
+      },
+    )
   })
 }
