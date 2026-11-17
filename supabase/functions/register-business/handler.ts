@@ -30,8 +30,11 @@ export const handler = defineFunction({
   async run(context) {
     const { body } = context
 
-    // Wrong guesses are limited per IP, per email and per device.
-    await context.limit('register:ip', context.ip, 10, HOUR)
+    // Wrong guesses are limited per IP, per email and per device. The per-IP
+    // limit can be raised with REGISTER_IP_LIMIT (for example on a dev project
+    // that runs automated tests); it never goes below the default of 10.
+    const ipLimit = Math.max(10, Number(context.deps.env('REGISTER_IP_LIMIT')) || 10)
+    await context.limit('register:ip', context.ip, ipLimit, HOUR)
     await context.limit('register:email', body.email, 5, HOUR)
     if (context.deviceId) await context.limit('register:device', context.deviceId, 5, HOUR)
 

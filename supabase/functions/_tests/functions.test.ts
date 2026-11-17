@@ -677,3 +677,38 @@ Deno.test('nobody but the super-admin gets a reset link, and never from another 
   const broken = makeWorld({ actor: ADMIN, recoveryLinkError: 'user_not_found' })
   assertEquals((await createOwnerResetLink(post({ businessId }), broken.deps)).status, 500)
 })
+
+Deno.test(
+  'the per-IP registration limit can be raised for a dev project, never lowered',
+  async () => {
+    const limits: number[] = []
+    const track = (env: Record<string, string>) =>
+      makeWorld({
+        env,
+        rpc: {
+          rate_limit_hit: (args) => {
+            if (String(args.p_key).length > 0) limits.push(Number(args.p_max))
+            return ok(true)
+          },
+        },
+      })
+    const body = {
+      businessName: "Ada's Pharmacy",
+      businessCode: 'adas-pharmacy',
+      ownerName: 'Ada Eze',
+      email: 'ada@shop.test',
+      password: 'long-password-1',
+      phone: '',
+      activationCode: 'TB-7K4M-X9QD',
+      turnstileToken: 'token',
+    }
+    await registerBusiness(post(body), track({ REGISTER_IP_LIMIT: '200' }).deps)
+    assertEquals(limits[0], 200)
+    limits.length = 0
+    await registerBusiness(post(body), track({ REGISTER_IP_LIMIT: '3' }).deps)
+    assertEquals(limits[0], 10)
+    limits.length = 0
+    await registerBusiness(post(body), track({}).deps)
+    assertEquals(limits[0], 10)
+  },
+)

@@ -20,6 +20,7 @@ const STATUS = {
   permission_denied: 403,
   account_disabled: 403,
   business_suspended: 403,
+  access_ended: 403,
   origin_not_allowed: 403,
   not_found: 404,
   method_not_allowed: 405,
