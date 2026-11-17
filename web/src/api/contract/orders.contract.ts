@@ -6,8 +6,8 @@ import type { CreateOrderInput, Item, SignInInput, TallyboxApi } from '../types'
  * The contract for selling: items, orders, held orders and password changes.
  * Runs against the mock now and against Supabase in Phase 2.
  *
- * Items cannot be created through the API until step 1C, so the fixture
- * provides a shop that already has stock: an owner and two staff members.
+ * The fixture provides a shop with at least two items that have stock, an
+ * owner and two staff members.
  */
 
 export interface ShopFixture {
@@ -229,7 +229,7 @@ export function describeOrdersContract(name: string, setup: () => Promise<ShopFi
         'validation',
       )
       expect(
-        await codeOf(api.orders.create(order([{ itemId: 'no-such-item', quantity: 1 }]))),
+        await codeOf(api.orders.create(order([{ itemId: crypto.randomUUID(), quantity: 1 }]))),
       ).toBe('item_unavailable')
     })
 
@@ -349,6 +349,8 @@ export function describeOrdersContract(name: string, setup: () => Promise<ShopFi
       expect((await api.auth.signIn({ ...fixture.staffA, password: 'new-pass-123' })).kind).toBe(
         'user',
       )
+      // Put it back: on a real backend the fixture's accounts outlive this test.
+      await api.auth.changePassword({ currentPassword: 'new-pass-123', newPassword: current })
     })
   })
 }
