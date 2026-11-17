@@ -22,10 +22,11 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "db:test": "supabase test db",
     "db:push": "supabase db push --remote",
-    "db:types": "supabase gen types typescript --linked --schema public > web/src/lib/database.types.ts",
+    "db:types": "supabase gen types --remote --lang typescript --schema public > web/src/lib/database.types.ts",
     "db:test:local": "node supabase/scripts/db-test-local.mjs",
     "functions:check": "deno check --config supabase/functions/deno.local.json supabase/functions",
-    "functions:test": "deno test --config supabase/functions/deno.local.json --no-prompt supabase/functions"
+    "functions:test": "deno test --config supabase/functions/deno.local.json --no-prompt supabase/functions",
+    "test:live": "npm run test:live -w web"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",

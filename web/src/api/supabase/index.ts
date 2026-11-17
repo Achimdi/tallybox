@@ -1,18 +1,71 @@
+import { deviceId as browserDeviceId } from '@/lib/device'
+import { env, looksLikeSecretKey } from '@/lib/env'
 import { AppError } from '@/lib/errors'
 import type { TallyboxApi } from '../types'
+import { createAccountsApi } from './accounts'
+import { createTallyboxClient, type SupabaseApiOptions } from './client'
 
 /**
- * The Supabase implementation of TallyboxApi: an empty stub until Phase 2.
+ * The Supabase implementation of TallyboxApi (Phase 2).
  *
- * Phase 2 fills this in feature by feature (auth and developer portal, items
- * and stock, orders and receipts, reports and settings). The database
- * migrations, Edge Functions and their tests written early are parked on the
- * `backend-draft` branch. Until then, every call answers "not set up yet".
+ * Built feature by feature, each part passing the same contract tests as the
+ * demo: 2A sign-in, registration, staff accounts and the developer portal (done);
+ * 2B items, supplies and stock; 2C orders; 2D reports, staff management and
+ * settings. Parts not built yet answer "not set up yet".
  */
 
 const notYet = (): Promise<never> => Promise.reject(new AppError('config_missing'))
 
-export function createSupabaseApi(): TallyboxApi {
+/** Options from this build's environment, for the browser. */
+export function browserSupabaseOptions(): SupabaseApiOptions {
+  return {
+    url: env.supabaseUrl ?? '',
+    publishableKey: env.supabasePublishableKey ?? '',
+    staffEmailDomain: env.staffEmailDomain,
+    deviceId: browserDeviceId,
+    isOnline: () => navigator.onLine,
+  }
+}
+
+export function createSupabaseApi(
+  options: SupabaseApiOptions = browserSupabaseOptions(),
+): TallyboxApi {
+  // Without settings (or with a secret key by mistake) the app still starts:
+  // every call answers "not set up yet" and the screens say so.
+  const configured =
+    Boolean(options.url && options.publishableKey) && !looksLikeSecretKey(options.publishableKey)
+  if (!configured) return notConfigured()
+
+  const client = createTallyboxClient(options)
+  const { auth, registration, staff, admin } = createAccountsApi(client, options)
+
+  return {
+    source: 'supabase',
+    requiresCaptcha: true,
+    auth,
+    registration,
+    staff,
+    items: {
+      list: notYet,
+      costs: notYet,
+      upsert: notYet,
+      archive: notYet,
+      restore: notYet,
+      stockModeChanges: notYet,
+    },
+    orders: { create: notYet, listMine: notYet, get: notYet, list: notYet, void: notYet },
+    held: { list: notYet, save: notYet, discard: notYet },
+    stock: { restock: notYet, adjust: notYet, movements: notYet },
+    supplies: { list: notYet, costs: notYet, upsert: notYet, archive: notYet, restore: notYet },
+    reports: { dashboard: notYet, summary: notYet, exportOrders: notYet },
+    business: { get: notYet, update: notYet },
+    admin,
+    demo: null,
+  }
+}
+
+/** Every call answers "not set up yet". */
+function notConfigured(): TallyboxApi {
   return {
     source: 'supabase',
     requiresCaptcha: true,

@@ -19,5 +19,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "pwa-assets.config.ts", "e2e"]
+  "include": [
+    "vite.config.ts",
+    "vitest.live.config.ts",
+    "playwright.config.ts",
+    "pwa-assets.config.ts",
+    "e2e"
+  ]
 }
