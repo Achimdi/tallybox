@@ -3,7 +3,6 @@
 Online inventory and sales for small shops, pharmacies and restaurants. A website opened from a link: no app store, no installs. React + TypeScript in `web/`, hosted free on Cloudflare (a Worker serving the built app, see `wrangler.jsonc`), with Supabase for the database, sign-in and server functions.
 
 - **Working rules for Claude Code:** [CLAUDE.md](CLAUDE.md)
-- **Planning documents** (the brief, the UX map, plan limits, setup guides and the security review) are kept privately by the developer, in a `docs/` folder that is not part of this repository.
 
 ## Status and plan
 
