@@ -3,6 +3,11 @@
 // the link on by hand (for example on WhatsApp) after checking who is asking.
 //
 // The link is as sensitive as a password: it is returned once and never logged.
+//
+// It leads to the app's own /reset-password page, not to Supabase's verify
+// address. Link previews (WhatsApp, email scanners) open links to show them,
+// which would use up a one-time link that verifies on opening. The app's page
+// only spends the code when the owner taps Continue.
 
 import { z } from '../_shared/deps.ts'
 import { defineFunction } from '../_shared/handler.ts'
@@ -30,11 +35,9 @@ export const handler = defineFunction({
       p_business_id: context.body.businessId,
     })
 
-    const { link } = await context.admin.generateRecoveryLink(
-      ownerEmail,
-      `${context.appOrigin}/reset-password`,
-    )
-    if (!link) throw new HttpError('server')
+    const { tokenHash } = await context.admin.generateRecoveryToken(ownerEmail)
+    if (!tokenHash) throw new HttpError('server')
+    const link = `${context.appOrigin}/reset-password?token=${encodeURIComponent(tokenHash)}`
 
     const seconds = Number(context.deps.env('RESET_LINK_SECONDS')) || DEFAULT_LINK_SECONDS
     return {

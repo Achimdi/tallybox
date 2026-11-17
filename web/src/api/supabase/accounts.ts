@@ -273,8 +273,8 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     return interpretSessionState(state, data.session?.user.email ?? null)
   }
 
-  // Set when this page was opened from a password-reset link; used up once the password is set.
-  let resetLinkUsable = options.openedPasswordResetLink ?? false
+  // Set once a reset link has been opened here; used up when the password is set.
+  let resetLinkUsable = false
 
   const auth: AuthApi = {
     async signIn(input) {
@@ -343,21 +343,40 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
           ? new AppError('wrong_password', { cause: check.error })
           : error
       }
-      const { error } = await client.auth.updateUser({ password: newPassword })
+      // The project also requires it (require_current_password), so a stolen
+      // sign-in can't change the password by calling Supabase directly.
+      const { error } = await client.auth.updateUser({
+        password: newPassword,
+        current_password: currentPassword,
+      })
       if (error) throw fromAuthError(error, options.isOnline)
     },
 
-    async readPasswordResetLink() {
-      // Only right after opening the link: never for an ordinary sign-in.
-      if (!resetLinkUsable) return null
-      const { data } = await client.auth.getSession()
-      const user = data.session?.user
-      const role = (user?.app_metadata as { role?: unknown } | undefined)?.role
-      return user?.email && role === 'owner' ? { email: user.email } : null
+    async openPasswordResetLink(token) {
+      if (!options.isOnline()) throw new AppError('offline')
+      const trimmed = token.trim()
+      if (!trimmed || trimmed.length > 200) throw new AppError('reset_link_invalid')
+      const { data, error } = await client.auth.verifyOtp({ token_hash: trimmed, type: 'recovery' })
+      if (error || !data.session) {
+        if (error && fromAuthError(error, options.isOnline).code === 'offline') {
+          throw new AppError('offline', { cause: error })
+        }
+        throw new AppError('reset_link_invalid', { cause: error ?? undefined })
+      }
+      const user = data.session.user
+      const role = (user.app_metadata as { role?: unknown } | undefined)?.role
+      // Reset links are for business owners only.
+      if (role !== 'owner' || !user.email) {
+        await client.auth.signOut()
+        throw new AppError('reset_link_invalid')
+      }
+      resetLinkUsable = true
+      return { email: user.email }
     },
 
     async completePasswordReset({ newPassword }) {
-      if (!(await auth.readPasswordResetLink())) throw new AppError('reset_link_invalid')
+      const { data } = await client.auth.getSession()
+      if (!resetLinkUsable || !data.session) throw new AppError('reset_link_invalid')
       if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX) {
         throw new AppError('weak_password')
       }

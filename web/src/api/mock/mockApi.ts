@@ -713,9 +713,9 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
       },
 
       // Demo reset links are pretend (https://reset.demo.invalid/...): nothing to open.
-      async readPasswordResetLink() {
+      async openPasswordResetLink() {
         await begin()
-        return null
+        return fail('reset_link_invalid')
       },
 
       async completePasswordReset() {

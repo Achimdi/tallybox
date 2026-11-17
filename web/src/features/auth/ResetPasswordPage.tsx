@@ -1,13 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { z } from 'zod'
 import { useApi } from '@/api/context'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { Button, ButtonLink } from '@/components/Button'
 import { PasswordField } from '@/components/PasswordField'
-import { Skeleton } from '@/components/Skeleton'
 import { useToast } from '@/components/toast-context'
 import { PASSWORD_MAX, PASSWORD_MIN } from '@/domain/rules'
 import { AppError, toAppError, userMessage } from '@/lib/errors'
@@ -32,8 +32,10 @@ type FormValues = z.infer<typeof schema>
 
 /**
  * Where an owner's one-time reset link lands (the developer portal makes the
- * link; v1 sends no email). Opening it signs the owner in for this one
- * purpose: they choose a new password, then carry on to their dashboard.
+ * link; v1 sends no email). The link is only used when the owner taps
+ * Continue, because link previews in chat apps and email open links too, and
+ * would otherwise use it up. Then they choose a new password and carry on to
+ * their dashboard.
  */
 export default function ResetPasswordPage() {
   const api = useApi()
@@ -41,11 +43,16 @@ export default function ResetPasswordPage() {
   const toast = useToast()
   const online = useOnlineStatus()
   const { refresh } = useSession()
-  const link = useQuery({
-    queryKey: ['password-reset-link'],
-    queryFn: () => api.auth.readPasswordResetLink(),
-    retry: false,
-    staleTime: Infinity,
+  const [params, setParams] = useSearchParams()
+  const token = params.get('token')
+  const [email, setEmail] = useState<string | null>(null)
+  const open = useMutation({
+    mutationFn: (value: string) => api.auth.openPasswordResetLink(value),
+    onSuccess: (result) => {
+      setEmail(result.email)
+      // The token has done its job: take it out of the address and history.
+      setParams({}, { replace: true })
+    },
   })
   const save = useMutation({
     mutationFn: (values: FormValues) =>
@@ -78,20 +85,14 @@ export default function ResetPasswordPage() {
     })
   })
 
-  if (link.isPending) {
-    return (
-      <AuthPage title="Choose a new password">
-        <div role="status" className="flex flex-col gap-4">
-          <span className="sr-only">Checking your link</span>
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      </AuthPage>
-    )
-  }
-
+  const openError = open.error ? toAppError(open.error) : null
   const saveError = save.error ? toAppError(save.error) : null
-  if (link.isError || !link.data || saveError?.code === 'reset_link_invalid') {
+  const expired =
+    (!email && !token) ||
+    openError?.code === 'reset_link_invalid' ||
+    saveError?.code === 'reset_link_invalid'
+
+  if (expired) {
     const message = userMessage(new AppError('reset_link_invalid'))
     return (
       <AuthPage title="Choose a new password">
@@ -106,8 +107,29 @@ export default function ResetPasswordPage() {
     )
   }
 
+  if (!email) {
+    return (
+      <AuthPage
+        title="Choose a new password"
+        subtitle="This one-time link lets you set a new password for your business account."
+      >
+        <ErrorBanner error={openError} />
+        <Button
+          size="lg"
+          fullWidth
+          loading={open.isPending}
+          loadingLabel="Checking your link…"
+          disabled={!online}
+          onClick={() => token && open.mutate(token)}
+        >
+          Continue
+        </Button>
+      </AuthPage>
+    )
+  }
+
   return (
-    <AuthPage title="Choose a new password" subtitle={`For ${link.data.email}`}>
+    <AuthPage title="Choose a new password" subtitle={`For ${email}`}>
       <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
         <ErrorBanner error={saveError && saveError.code !== 'weak_password' ? saveError : null} />
         <PasswordField

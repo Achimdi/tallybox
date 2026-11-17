@@ -33,13 +33,13 @@ export interface AdminClient {
   }): Promise<{ userId: string | null; errorCode: string | null }>
   deleteUser(userId: string): Promise<{ ok: boolean }>
   /**
-   * A one-time link that lets the user choose a new password. No email is sent:
-   * the super-admin passes the link on by hand (v1 depends on no email).
+   * A one-time code that lets the user choose a new password, as the hash the
+   * app hands back to Supabase Auth. No email is sent: the super-admin passes
+   * the link on by hand (v1 depends on no email).
    */
-  generateRecoveryLink(
+  generateRecoveryToken(
     email: string,
-    redirectTo: string,
-  ): Promise<{ link: string | null; errorCode: string | null }>
+  ): Promise<{ tokenHash: string | null; errorCode: string | null }>
   /** Sets a user's password, as the owner does for a staff member who forgot theirs. */
   updateUserPassword(userId: string, password: string): Promise<{ errorCode: string | null }>
   /** Stores a file in a Storage bucket. Never overwrites: every file gets a new name. */
@@ -128,14 +128,10 @@ function createRealAdmin(): AdminClient {
       const { error } = await client.auth.admin.deleteUser(userId)
       return { ok: !error }
     },
-    async generateRecoveryLink(email, redirectTo) {
-      const { data, error } = await client.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-        options: { redirectTo },
-      })
-      if (error) return { link: null, errorCode: error.code ?? 'unknown' }
-      return { link: data.properties?.action_link ?? null, errorCode: null }
+    async generateRecoveryToken(email) {
+      const { data, error } = await client.auth.admin.generateLink({ type: 'recovery', email })
+      if (error) return { tokenHash: null, errorCode: error.code ?? 'unknown' }
+      return { tokenHash: data.properties?.hashed_token ?? null, errorCode: null }
     },
     async updateUserPassword(userId, password) {
       const { error } = await client.auth.admin.updateUserById(userId, { password })

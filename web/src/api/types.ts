@@ -91,12 +91,13 @@ export interface AuthApi {
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>
   /**
    * An owner who forgot their password gets a one-time link from Tallybox
-   * (the developer portal makes it). Opened in this browser, it signs them in
-   * for that purpose: this says who it is for, or null when there is no usable
-   * link (none, expired or already used).
+   * (the developer portal makes it), ending in ?token=... Using the token
+   * signs them in for that one purpose and says who it is for. Call it only
+   * when the person asks to continue: link previews open links too, and must
+   * not use the token up. Throws reset_link_invalid (expired, used or wrong).
    */
-  readPasswordResetLink(): Promise<{ email: string } | null>
-  /** Sets the new password from that link, once. Throws weak_password or reset_link_invalid. */
+  openPasswordResetLink(token: string): Promise<{ email: string }>
+  /** Sets the new password after opening a link, once. Throws weak_password or reset_link_invalid. */
   completePasswordReset(input: { newPassword: string }): Promise<void>
 }
 

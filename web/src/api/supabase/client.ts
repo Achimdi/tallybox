@@ -42,8 +42,6 @@ export interface SupabaseApiOptions {
   /** A random id for this device, sent so the server can limit repeated attempts. */
   deviceId: () => string
   isOnline: () => boolean
-  /** True when this page was opened from an owner's one-time password-reset link. */
-  openedPasswordResetLink?: boolean
 }
 
 export function createTallyboxClient(options: SupabaseApiOptions): TallyboxClient {

@@ -27,7 +27,7 @@ interface World {
   createdUsers: { email: string; password: string; app_metadata: Record<string, unknown> }[]
   deletedUsers: string[]
   /** Recovery links asked for: who for, and where the link leads back to. */
-  recoveryLinks: { email: string; redirectTo: string }[]
+  recoveryLinks: { email: string }[]
   passwordUpdates: { userId: string; password: string }[]
   uploads: { bucket: string; path: string; contentType: string; size: number }[]
   removed: string[]
@@ -116,16 +116,13 @@ function makeWorld(options: WorldOptions = {}): World {
       world.deletedUsers.push(userId)
       return Promise.resolve({ ok: true })
     },
-    generateRecoveryLink(email, redirectTo) {
-      world.calls.push('generateRecoveryLink')
+    generateRecoveryToken(email) {
+      world.calls.push('generateRecoveryToken')
       if (options.recoveryLinkError) {
-        return Promise.resolve({ link: null, errorCode: options.recoveryLinkError })
+        return Promise.resolve({ tokenHash: null, errorCode: options.recoveryLinkError })
       }
-      world.recoveryLinks.push({ email, redirectTo })
-      return Promise.resolve({
-        link: 'https://project.supabase.co/auth/v1/verify?token=SECRET-TOKEN&type=recovery',
-        errorCode: null,
-      })
+      world.recoveryLinks.push({ email })
+      return Promise.resolve({ tokenHash: 'SECRET-TOKEN', errorCode: null })
     },
     updateUserPassword(userId, password) {
       world.calls.push('updateUserPassword')
@@ -654,17 +651,13 @@ Deno.test(
     const { data } = (await response.json()) as {
       data: { url: string; ownerEmail: string; expiresAt: string }
     }
-    assertEquals(
-      data.url,
-      'https://project.supabase.co/auth/v1/verify?token=SECRET-TOKEN&type=recovery',
-    )
+    // The app's own page, on the address the request came from, which spends
+    // the code only when the owner taps Continue (so link previews can't).
+    assertEquals(data.url, 'https://tallybox.pages.dev/reset-password?token=SECRET-TOKEN')
     assertEquals(data.ownerEmail, 'ada@shop.test')
     assert(new Date(data.expiresAt).getTime() > Date.now())
 
-    // The link leads back to the app's own reset page, on the address the request came from.
-    assertEquals(world.recoveryLinks, [
-      { email: 'ada@shop.test', redirectTo: 'https://tallybox.pages.dev/reset-password' },
-    ])
+    assertEquals(world.recoveryLinks, [{ email: 'ada@shop.test' }])
     assertEquals(world.rpcArgs.admin_owner_email, {
       p_actor_id: 'admin-1',
       p_business_id: businessId,
@@ -681,7 +674,7 @@ Deno.test('nobody but the super-admin gets a reset link, and never from another 
   // The database says "not found" to anyone who is not the super-admin: no link is made.
   const owner = makeWorld({ actor: OWNER, rpc: { admin_owner_email: () => refuse('not_found') } })
   assertEquals((await createOwnerResetLink(post({ businessId }), owner.deps)).status, 404)
-  assert(!owner.calls.includes('generateRecoveryLink'))
+  assert(!owner.calls.includes('generateRecoveryToken'))
 
   const signedOut = makeWorld({ actor: null })
   assertEquals((await createOwnerResetLink(post({ businessId }), signedOut.deps)).status, 401)
@@ -701,7 +694,7 @@ Deno.test('nobody but the super-admin gets a reset link, and never from another 
   // Too many links in an hour: refused.
   const limited = makeWorld({ actor: ADMIN, rpc: { rate_limit_hit: () => ok(false) } })
   assertEquals((await createOwnerResetLink(post({ businessId }), limited.deps)).status, 429)
-  assert(!limited.calls.includes('generateRecoveryLink'))
+  assert(!limited.calls.includes('generateRecoveryToken'))
 
   // If Supabase Auth cannot make the link, say so safely.
   const broken = makeWorld({ actor: ADMIN, recoveryLinkError: 'user_not_found' })

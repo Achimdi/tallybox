@@ -26,8 +26,6 @@ export function browserSupabaseOptions(): SupabaseApiOptions {
     staffEmailDomain: env.staffEmailDomain,
     deviceId: browserDeviceId,
     isOnline: () => navigator.onLine,
-    // Read before the Supabase client takes the sign-in out of the address.
-    openedPasswordResetLink: /[#&]type=recovery(&|$)/.test(window.location.hash),
   }
 }
 
@@ -74,7 +72,7 @@ function notConfigured(): TallyboxApi {
       getSession: notYet,
       signOut: notYet,
       changePassword: notYet,
-      readPasswordResetLink: () => Promise.resolve(null),
+      openPasswordResetLink: notYet,
       completePasswordReset: notYet,
     },
     registration: { isBusinessCodeAvailable: notYet, registerBusiness: notYet },

@@ -229,7 +229,9 @@ export function describeAccountsContract(name: string, setup: () => Promise<Cont
     })
 
     it('sets no password through the reset path without a real reset link', async () => {
-      expect(await api.auth.readPasswordResetLink()).toBeNull()
+      expect(await errorCode(api.auth.openPasswordResetLink('not-a-real-token'))).toBe(
+        'reset_link_invalid',
+      )
       expect(
         await errorCode(api.auth.completePasswordReset({ newPassword: 'other-pass-123' })),
       ).toBe('reset_link_invalid')
@@ -239,13 +241,54 @@ export function describeAccountsContract(name: string, setup: () => Promise<Cont
       expectUser(
         await api.auth.signIn({ portal: 'owner', email: input.email, password: input.password }),
       )
-      expect(await api.auth.readPasswordResetLink()).toBeNull()
       expect(
         await errorCode(api.auth.completePasswordReset({ newPassword: 'other-pass-123' })),
       ).toBe('reset_link_invalid')
       await api.auth.signOut()
       expectUser(
         await api.auth.signIn({ portal: 'owner', email: input.email, password: input.password }),
+      )
+    })
+
+    it('lets an owner choose a new password once, from a link the developer made', async () => {
+      const { input, businessCode } = await registerBusiness()
+      const businessId = await businessIdFor(businessCode)
+      await signInDeveloper()
+      const link = await api.admin.createOwnerResetLink(businessId)
+      await api.auth.signOut()
+      expect(link.ownerEmail).toBe(input.email)
+
+      // Demo links are pretend: there is nothing to open.
+      const token = new URL(link.url).searchParams.get('token')
+      if (link.simulated || !token) {
+        expect(await errorCode(api.auth.openPasswordResetLink('pretend'))).toBe(
+          'reset_link_invalid',
+        )
+        return
+      }
+
+      const phone = fixture.otherBrowser()
+      expect(await phone.auth.openPasswordResetLink(token)).toEqual({ email: input.email })
+      expect(await errorCode(phone.auth.completePasswordReset({ newPassword: 'short' }))).toBe(
+        'weak_password',
+      )
+      await phone.auth.completePasswordReset({ newPassword: 'from-the-link-1' })
+      expect(
+        await errorCode(phone.auth.completePasswordReset({ newPassword: 'and-again-12' })),
+      ).toBe('reset_link_invalid')
+      await phone.auth.signOut()
+
+      // The link works once, and only the new password signs in now.
+      expect(await errorCode(fixture.otherBrowser().auth.openPasswordResetLink(token))).toBe(
+        'reset_link_invalid',
+      )
+      expect(
+        await errorCode(
+          api.auth.signIn({ portal: 'owner', email: input.email, password: input.password }),
+        ),
+      ).toBe('invalid_credentials')
+      expectUser(
+        await api.auth.signIn({ portal: 'owner', email: input.email, password: 'from-the-link-1' }),
       )
     })
 
@@ -508,7 +551,13 @@ export function describeAccountsContract(name: string, setup: () => Promise<Cont
       await signInDeveloper()
       const link = await api.admin.createOwnerResetLink(businessId)
       expect(link.ownerEmail).toBe(input.email)
-      expect(link.url).toMatch(/^https:\/\//)
+      const url = new URL(link.url)
+      expect(['http:', 'https:']).toContain(url.protocol)
+      if (!link.simulated) {
+        // The app's own page, which spends the token only when the owner taps Continue.
+        expect(url.pathname).toBe('/reset-password')
+        expect(url.searchParams.get('token')).toBeTruthy()
+      }
       expect(new Date(link.expiresAt).getTime()).toBeGreaterThan(Date.now())
     })
   })

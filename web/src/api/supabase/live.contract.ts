@@ -1,4 +1,5 @@
-import { describe, it } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
+import { describe, expect, it } from 'vitest'
 import { DEFAULT_STAFF_EMAIL_DOMAIN } from '@/domain/rules'
 import { AppError } from '@/lib/errors'
 import { describeAccountsContract } from '../contract/accounts.contract'
@@ -162,6 +163,33 @@ if (ready) {
   describeOrdersContract('supabase', sharedShop({ stocked: true }))
   describeOwnerContract('supabase', ownerShop, BUILT)
   describeSuppliesContract('supabase', ownerShop, BUILT)
+
+  // Settings on the Supabase project itself, beyond what the app's own calls show.
+  describe('Supabase project settings (live)', () => {
+    it('refuses a password change that skips the current password, even when signed in', async () => {
+      const { owner } = await ownerShop()
+      if (owner.portal !== 'owner') throw new Error('expected an owner')
+      // Someone with a stolen sign-in, calling Supabase directly instead of the app.
+      const raw = createClient(url, publishableKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const signedIn = await raw.auth.signInWithPassword({
+        email: owner.email,
+        password: owner.password,
+      })
+      expect(signedIn.error).toBeNull()
+      const { error } = await raw.auth.updateUser({ password: 'taken-over-123' })
+      expect(error).not.toBeNull()
+      const wrong = await raw.auth.updateUser({
+        password: 'taken-over-123',
+        current_password: 'not-the-password',
+      })
+      expect(wrong.error).not.toBeNull()
+      await raw.auth.signOut()
+      // The real password still works.
+      expect((await browser().auth.signIn(owner)).kind).toBe('user')
+    })
+  })
 } else {
   describe('live contract tests', () => {
     it.skip('need .env.local and .env.live.local (see vitest.live.config.ts)', () => undefined)
