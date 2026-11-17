@@ -1,8 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { TallyboxApi } from '@/api/types'
-import { DEMO, signedInTestApi } from '@/test/mockApi'
+import { createTestApi, DEMO, signedInTestApi } from '@/test/mockApi'
 import { renderApp } from '@/test/render'
 
 /** Opens a staff screen as demo staff member Ada, on fresh demo data. */
@@ -220,6 +220,21 @@ describe('my orders', () => {
     expect(await screen.findByRole('heading', { name: /^Order #\d{4}$/ })).toBeInTheDocument()
     expect(screen.getByText('Payment confirmed by')).toBeInTheDocument()
     expect(screen.getByRole('table')).toHaveTextContent('Total')
+  })
+
+  it("gives every demo staff member today's orders, even just after midnight", async () => {
+    // 00:10 in Lagos (UTC+1) is 23:10 UTC the day before.
+    const justAfterMidnight = Date.UTC(2026, 10, 17, 23, 10)
+    vi.useFakeTimers({ now: justAfterMidnight, toFake: ['Date'] })
+    try {
+      const test = createTestApi()
+      await test.api.auth.signIn({ ...DEMO.staff, username: 'bola' })
+      const mine = await test.api.orders.listMine()
+      expect(mine.length).toBeGreaterThan(0)
+      expect(mine.every((order) => order.dateKey === '2026-11-18')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("does not open another staff member's order", async () => {

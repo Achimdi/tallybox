@@ -580,8 +580,14 @@ export function createSalesSeed(input: SalesSeedInput): SalesSeed {
     }
   }
   // Today: a few orders in the last two hours, mostly by the first staff member.
+  // Never before the business's midnight: just after it, they bunch up instead,
+  // so "today" always has its orders (and the second staff member one of them).
+  const localMidnight =
+    Math.floor((nowMs + offsetHours * 3_600_000) / DAY_MS) * DAY_MS - offsetHours * 3_600_000
+  const sinceMidnight = nowMs - localMidnight
   for (let index = 0; index < 4; index += 1) {
-    const at = nowMs - (index * 30 + 8) * 60_000
+    const back = Math.min((index * 30 + 8) * 60_000, Math.floor((sinceMidnight * (index + 1)) / 5))
+    const at = nowMs - back
     const staff = index === 2 ? (input.staff[1] ?? input.staff[0]!) : input.staff[0]!
     draftOrder(at, staff, normal)
   }
