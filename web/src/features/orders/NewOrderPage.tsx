@@ -1,3 +1,4 @@
+import { CirclePause } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -13,8 +14,10 @@ import { useSessionUser } from '@/features/auth/session'
 import { categoriesOf, matchesSearch, useItems } from '@/features/items/api'
 import { useMediaQuery, WIDE_SCREEN } from '@/lib/useMediaQuery'
 import { useSupplies } from '@/features/supplies/api'
+import { useHeldOrders } from './api'
 import { CartPanel } from './CartPanel'
 import { useCart } from './cartStore'
+import { HeldOrdersList } from './HeldOrdersList'
 import { capOrMax, sellingStock } from './stockRoom'
 
 const ALL = '__all__'
@@ -23,6 +26,8 @@ const ALL = '__all__'
  * Taking an order: find items, tap to add, then fill in payment and confirm.
  * Phone: items full width, cart in a sheet from the bar at the bottom.
  * Tablet and up: items on the left, cart always visible on the right.
+ * Held orders open from the top of the page, so a hold can be picked up again
+ * right where it was made.
  */
 export default function NewOrderPage() {
   const user = useSessionUser()
@@ -34,6 +39,9 @@ export default function NewOrderPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState(ALL)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [heldOpen, setHeldOpen] = useState(false)
+  const held = useHeldOrders()
+  const heldCount = held.data?.length ?? 0
 
   const forSale = useMemo(() => (items.data ?? []).filter((item) => item.active), [items.data])
   const categories = useMemo(
@@ -135,9 +143,23 @@ export default function NewOrderPage() {
   return (
     <div className="flex flex-col gap-4 pb-20 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:items-start md:gap-6 md:pb-0 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <section aria-labelledby="new-order-title" className="flex min-w-0 flex-col gap-4">
-        <h1 id="new-order-title" className="text-title-lg text-ink">
-          New order
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 id="new-order-title" className="text-title-lg text-ink">
+            New order
+          </h1>
+          {heldCount > 0 ? (
+            <Button
+              variant="secondary"
+              onClick={() => setHeldOpen(true)}
+              leadingIcon={<CirclePause aria-hidden="true" className="size-5 text-info" />}
+            >
+              Held orders
+              <span className="ml-1 rounded-full bg-surface-sunken px-2 text-label text-ink tabular-nums">
+                {heldCount}
+              </span>
+            </Button>
+          ) : null}
+        </div>
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -187,6 +209,14 @@ export default function NewOrderPage() {
           </BottomSheet>
         </>
       )}
+      <BottomSheet
+        open={heldOpen}
+        onOpenChange={setHeldOpen}
+        title="Held orders"
+        description="Resume one to carry on with it. A held order takes no stock until it is confirmed."
+      >
+        <HeldOrdersList onResume={() => setHeldOpen(false)} />
+      </BottomSheet>
     </div>
   )
 }

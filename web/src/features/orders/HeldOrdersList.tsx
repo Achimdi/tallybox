@@ -22,9 +22,10 @@ export function itemCount(lines: readonly { quantity: number }[]): string {
 
 /**
  * Held orders with Resume and Discard. Staff see their own; the owner sees
- * everyone's, with who held each one.
+ * everyone's, with who held each one. Resume puts the hold back in the cart on
+ * New order; `onResume` lets a sheet that shows this list close itself.
  */
-export function HeldOrdersList() {
+export function HeldOrdersList({ onResume }: { onResume?: () => void } = {}) {
   const user = useSessionUser()
   const currency = user.currencyCode ?? 'NGN'
   const timezone = user.timezone ?? 'UTC'
@@ -39,6 +40,7 @@ export function HeldOrdersList() {
 
   const resume = (hold: HeldOrder) => {
     loadHeldIntoCart(user.id, hold)
+    onResume?.()
     void navigate(`${base}/new-order`)
   }
 
@@ -71,7 +73,7 @@ export function HeldOrdersList() {
       <div className="rounded-card border border-line bg-surface-raised">
         <EmptyState
           title="No held orders"
-          description="Hold an order on New order while you wait for a payment to arrive."
+          description="On New order, tap Hold order to keep a cart while you wait for payment."
         />
       </div>
     )

@@ -123,7 +123,7 @@ export function CartPanel({ items, supplies, onDone }: CartPanelProps) {
       onDone?.()
       toast({
         title: 'Order held',
-        description: 'Find it in My orders, under Held.',
+        description: 'Tap Held orders at the top of New order to carry on with it.',
         tone: 'success',
       })
     } catch (thrown) {

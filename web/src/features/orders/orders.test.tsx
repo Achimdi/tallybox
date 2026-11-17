@@ -165,6 +165,36 @@ describe('held orders', () => {
     expect(await quantityOf(test.api, 'Chocolate bar')).toBe((before ?? 0) - 1)
   })
 
+  it('finds held orders on New order, and resumes one into the cart there', async () => {
+    const { test } = await asStaff('/staff/new-order')
+    const count = (await test.api.held.list()).length
+    expect(await screen.findByRole('button', { name: /^Held orders/ })).toHaveTextContent(
+      String(count),
+    )
+
+    // Holding another one adds it to the count straight away.
+    await addItem(/Add Chocolate bar/)
+    const cart = await openCart()
+    await userEvent.click(within(cart).getByRole('button', { name: 'Hold order' }))
+    expect(await screen.findByText(/Tap Held orders at the top/)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Held orders/ })).toHaveTextContent(
+        String(count + 1),
+      ),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /^Held orders/ }))
+    const sheet = await screen.findByRole('dialog', { name: 'Held orders' })
+    const card = (await within(sheet).findByText('Mrs Bello')).closest('li')!
+    await userEvent.click(within(card).getByRole('button', { name: 'Resume' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Held orders' })).not.toBeInTheDocument(),
+    )
+    const resumed = await openCart()
+    expect(within(resumed).getByText('Resumed from a held order')).toBeInTheDocument()
+  })
+
   it('discards a held order after asking', async () => {
     const { test } = await asStaff('/staff/orders')
     await userEvent.click(await screen.findByRole('tab', { name: /Held/ }))
