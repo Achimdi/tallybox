@@ -15,6 +15,9 @@ import type {
 import {
   callRpc,
   fromReadError,
+  isoTime,
+  pageRange,
+  readQuery,
   requireSignedInRole,
   type Role,
   type SupabaseApiOptions,
@@ -92,17 +95,10 @@ export function createStockApi(client: TallyboxClient, options: SupabaseApiOptio
     schema: Schema,
   ) => callRpc(client, options, name, args, schema)
 
-  async function read<Schema extends z.ZodType>(
-    query: PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+  const read = <Schema extends z.ZodType>(
+    query: Parameters<typeof readQuery<Schema>>[1],
     schema: Schema,
-  ): Promise<z.infer<Schema>> {
-    if (!options.isOnline()) throw new AppError('offline')
-    const { data, error } = await query
-    if (error) throw fromReadError(error)
-    const parsed = schema.safeParse(data)
-    if (!parsed.success) throw new AppError('server', { cause: parsed.error })
-    return parsed.data
-  }
+  ) => readQuery(options, query, schema)
 
   /** Everything needed to describe items and supplies, read in parallel. */
   async function snapshot() {
@@ -283,7 +279,7 @@ export function createStockApi(client: TallyboxClient, options: SupabaseApiOptio
       ])
       return rows.map((row): StockModeChange => ({
         id: row.id,
-        changedAt: row.changed_at,
+        changedAt: isoTime(row.changed_at),
         changedByName: row.changed_by_name,
         before: {
           tracksOwnStock: row.before.tracks_own_stock,
@@ -397,8 +393,7 @@ export function createStockApi(client: TallyboxClient, options: SupabaseApiOptio
 
     async movements(filter) {
       await requireRole(['owner'])
-      const offset = filter.offset ?? 0
-      const limit = filter.limit ?? 50
+      const range = pageRange(filter.offset, filter.limit)
       let query = client
         .from('stock_movements')
         .select(
@@ -416,7 +411,7 @@ export function createStockApi(client: TallyboxClient, options: SupabaseApiOptio
       const { data, error, count } = await query
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
-        .range(offset, offset + Math.max(limit, 1) - 1)
+        .range(range.from, range.to)
       if (error) throw fromReadError(error)
       const parsed = z.array(movementRow).safeParse(data)
       if (!parsed.success) throw new AppError('server', { cause: parsed.error })
@@ -444,7 +439,7 @@ export function createStockApi(client: TallyboxClient, options: SupabaseApiOptio
           createdById: row.created_by,
           createdByName: row.created_by_name,
           dateKey: row.date_key,
-          createdAt: row.created_at,
+          createdAt: isoTime(row.created_at),
         })),
       }
     },

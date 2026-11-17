@@ -153,6 +153,23 @@ export function fromReadError(error: { code?: string; message?: string }): AppEr
   return fromDatabaseError(error)
 }
 
+/** Rows `from`..`to` (inclusive) for a page, sized like the demo: 25 by default, at most 100. */
+export function pageRange(offset = 0, limit = 25): { from: number; to: number } {
+  const size = Math.min(Math.max(limit, 1), 100)
+  const from = Math.max(offset, 0)
+  return { from, to: from + size - 1 }
+}
+
+/** A database timestamp as the same ISO text the demo uses ("…T12:00:00.000Z"). */
+export function isoTime(value: string): string {
+  return new Date(value).toISOString()
+}
+
+/** Ids are UUIDs; anything else can't match a row, so it is simply "not found". */
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
 export type Role = 'owner' | 'staff' | 'super_admin'
 
 /**
@@ -164,13 +181,33 @@ export type Role = 'owner' | 'staff' | 'super_admin'
 export async function requireSignedInRole(
   client: TallyboxClient,
   roles: readonly Role[],
-): Promise<void> {
+): Promise<{ userId: string; role: Role }> {
   const { data } = await client.auth.getSession()
   if (!data.session) throw new AppError('unauthenticated')
   const role = (data.session.user.app_metadata as { role?: unknown } | undefined)?.role
   if (typeof role !== 'string' || !roles.includes(role as Role)) {
     throw new AppError('permission_denied')
   }
+  return { userId: data.session.user.id, role: role as Role }
+}
+
+/** Runs a table read and checks its shape; failures become AppErrors. */
+export async function readQuery<Schema extends z.ZodType>(
+  options: Pick<SupabaseApiOptions, 'isOnline'>,
+  query: PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+  schema: Schema,
+): Promise<z.infer<Schema>> {
+  if (!options.isOnline()) throw new AppError('offline')
+  let result: { data: unknown; error: { code?: string; message?: string } | null }
+  try {
+    result = await query
+  } catch (thrown) {
+    throw toAppError(thrown)
+  }
+  if (result.error) throw fromReadError(result.error)
+  const parsed = schema.safeParse(result.data)
+  if (!parsed.success) throw new AppError('server', { cause: parsed.error })
+  return parsed.data
 }
 
 export { isAppErrorCode }

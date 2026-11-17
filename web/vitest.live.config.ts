@@ -27,11 +27,12 @@ export default defineConfig({
     root: WEB_ROOT,
     environment: 'node',
     include: ['src/api/supabase/live.contract.ts'],
-    // One shared project and real network: one test at a time, with time to answer.
+    // One shared project and real network: one test at a time, with time to
+    // answer, and to wait out Supabase's sign-in limit if a run hits it.
     fileParallelism: false,
     sequence: { concurrent: false },
-    testTimeout: 60_000,
-    hookTimeout: 60_000,
+    testTimeout: 360_000,
+    hookTimeout: 360_000,
     env: {
       VITE_SUPABASE_URL: fileEnv.VITE_SUPABASE_URL ?? '',
       VITE_SUPABASE_PUBLISHABLE_KEY: fileEnv.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',

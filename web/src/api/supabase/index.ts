@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors'
 import type { TallyboxApi } from '../types'
 import { createAccountsApi } from './accounts'
 import { createTallyboxClient, type SupabaseApiOptions } from './client'
+import { createOrdersApi } from './orders'
 import { createStockApi } from './stock'
 
 /**
@@ -11,7 +12,8 @@ import { createStockApi } from './stock'
  *
  * Built feature by feature, each part passing the same contract tests as the
  * demo: 2A sign-in, registration, staff accounts and the developer portal (done);
- * 2B items, supplies and stock (done); 2C orders; 2D reports, staff management and
+ * 2B items, supplies and stock (done); 2C orders, held orders and
+ * reading business details for receipts (done); 2D reports, staff management and
  * settings. Parts not built yet answer "not set up yet".
  */
 
@@ -40,6 +42,7 @@ export function createSupabaseApi(
   const client = createTallyboxClient(options)
   const { auth, registration, staff, admin } = createAccountsApi(client, options)
   const { items, supplies, stock } = createStockApi(client, options)
+  const { orders, held, business } = createOrdersApi(client, options, { items, supplies })
 
   return {
     source: 'supabase',
@@ -48,12 +51,12 @@ export function createSupabaseApi(
     registration,
     staff,
     items,
-    orders: { create: notYet, listMine: notYet, get: notYet, list: notYet, void: notYet },
-    held: { list: notYet, save: notYet, discard: notYet },
+    orders,
+    held,
     stock,
     supplies,
     reports: { dashboard: notYet, summary: notYet, exportOrders: notYet },
-    business: { get: notYet, update: notYet },
+    business: { get: business.get, update: notYet },
     admin,
     demo: null,
   }
