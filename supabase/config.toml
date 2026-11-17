@@ -438,3 +438,13 @@ verify_jwt = false
 
 [functions.check-business-code]
 verify_jwt = false
+
+# Production: tallybox-prod. Only what differs from the settings above, which
+# are tallybox-dev's. Push with `npm run config:push -- --remote=qtlzzfyevzhsbdcwubka`
+# (the script reads the real Turnstile secret from .env.prod-secrets.local).
+[remotes.production]
+project_id = "qtlzzfyevzhsbdcwubka"
+
+[remotes.production.auth]
+site_url = "https://tallybox.foodss.workers.dev"
+additional_redirect_urls = ["https://tallybox.foodss.workers.dev"]
