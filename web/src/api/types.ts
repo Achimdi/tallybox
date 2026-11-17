@@ -89,6 +89,15 @@ export interface AuthApi {
   signOut(): Promise<void>
   /** For the signed-in person. Throws wrong_password or weak_password. */
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>
+  /**
+   * An owner who forgot their password gets a one-time link from Tallybox
+   * (the developer portal makes it). Opened in this browser, it signs them in
+   * for that purpose: this says who it is for, or null when there is no usable
+   * link (none, expired or already used).
+   */
+  readPasswordResetLink(): Promise<{ email: string } | null>
+  /** Sets the new password from that link, once. Throws weak_password or reset_link_invalid. */
+  completePasswordReset(input: { newPassword: string }): Promise<void>
 }
 
 // ---------------------------------------------------------------------------

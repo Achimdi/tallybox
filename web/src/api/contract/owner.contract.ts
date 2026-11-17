@@ -496,8 +496,12 @@ export function describeOwnerContract(
 
         const tinyPng =
           'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=='
-        expect((await owner.business.update({ ...settings, logo: tinyPng })).logoUrl).toBe(tinyPng)
-        expect((await owner.business.update(settings)).logoUrl).toBe(tinyPng)
+        // Where the logo is kept is up to the backend (the demo keeps the picture
+        // itself, Supabase a file in Storage). It is set, kept, then removed.
+        const withLogo = (await owner.business.update({ ...settings, logo: tinyPng })).logoUrl
+        expect(withLogo).toEqual(expect.any(String))
+        expect((await staff.business.get()).logoUrl).toBe(withLogo)
+        expect((await owner.business.update(settings)).logoUrl).toBe(withLogo)
         expect((await owner.business.update({ ...settings, logo: null })).logoUrl).toBeNull()
       },
     )

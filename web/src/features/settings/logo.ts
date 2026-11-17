@@ -1,5 +1,5 @@
-/** The longest data URL the logo may be (the mock and, later, the server check the same). */
-export const LOGO_MAX_LENGTH = 300_000
+import { LOGO_MAX_LENGTH } from '@/domain/rules'
+
 const LOGO_MAX_SIDE = 256
 
 export type LogoProblem = 'not_image' | 'too_large' | 'unreadable'

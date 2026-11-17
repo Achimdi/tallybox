@@ -8,6 +8,8 @@
  * Edge Functions and database functions report failures with these same codes.
  */
 
+import { SUPPORT_EMAIL } from './config'
+
 const USER_MESSAGES = {
   offline: {
     title: "You're offline",
@@ -40,6 +42,10 @@ const USER_MESSAGES = {
   access_ended: {
     title: "This business's access has ended",
     description: 'Contact Tallybox support to extend it. Your records are safe.',
+  },
+  reset_link_invalid: {
+    title: 'This link has expired',
+    description: `Reset links work once, within an hour. Ask Tallybox for a new one: ${SUPPORT_EMAIL}`,
   },
   not_found: {
     title: "We couldn't find that",

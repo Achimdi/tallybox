@@ -228,6 +228,27 @@ export function describeAccountsContract(name: string, setup: () => Promise<Cont
       expect(listed).toMatchObject({ status: 'used', usedByBusinessName: 'Contract Shop' })
     })
 
+    it('sets no password through the reset path without a real reset link', async () => {
+      expect(await api.auth.readPasswordResetLink()).toBeNull()
+      expect(
+        await errorCode(api.auth.completePasswordReset({ newPassword: 'other-pass-123' })),
+      ).toBe('reset_link_invalid')
+
+      // Even signed in normally: only opening a one-time link allows it.
+      const { input } = await registerBusiness()
+      expectUser(
+        await api.auth.signIn({ portal: 'owner', email: input.email, password: input.password }),
+      )
+      expect(await api.auth.readPasswordResetLink()).toBeNull()
+      expect(
+        await errorCode(api.auth.completePasswordReset({ newPassword: 'other-pass-123' })),
+      ).toBe('reset_link_invalid')
+      await api.auth.signOut()
+      expectUser(
+        await api.auth.signIn({ portal: 'owner', email: input.email, password: input.password }),
+      )
+    })
+
     it('gives open-ended access when the code says so', async () => {
       const { input } = await registerBusiness({ accessDays: null })
       const owner = expectUser(

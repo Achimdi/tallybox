@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { checkOrder, normalizeCart, type CartLine } from '@/domain/orders'
+import { isLogoDataUrl } from '@/domain/rules'
 import { dateKey, isDateKey } from '@/lib/dates'
 import { AppError } from '@/lib/errors'
 import type {
@@ -14,6 +15,7 @@ import type {
   SuppliesApi,
 } from '../types'
 import {
+  callFunction,
   callRpc,
   isoTime,
   isUuid,
@@ -35,10 +37,10 @@ import {
  * item or supply is short.
  */
 
-const ORDER_COLUMNS =
+export const ORDER_COLUMNS =
   'id, order_number, status, staff_id, staff_name, total, payment_method, payment_reference, payment_confirmed_by_name, payment_confirmed_at, customer_name, customer_phone, note, date_key, created_at, voided_at, voided_by_name, void_reason, order_lines(item_id, name, unit_price, qty, line_total, line_no)'
 
-const orderRow = z.object({
+export const orderRow = z.object({
   id: z.string(),
   order_number: z.coerce.number(),
   status: z.enum(['completed', 'voided']),
@@ -103,7 +105,7 @@ const businessRow = z.object({
   subscription_ends_at: z.string().nullable(),
 })
 
-function toOrder(row: z.infer<typeof orderRow>): Order {
+export function toOrder(row: z.infer<typeof orderRow>): Order {
   return {
     id: row.id,
     orderNumber: row.order_number,
@@ -388,25 +390,64 @@ export function createOrdersApi(
     },
   }
 
-  const business: Pick<BusinessApi, 'get'> = {
+  /** Where a stored logo can be fetched: the public "logos" bucket. */
+  const logoUrl = (path: string | null) =>
+    path ? client.storage.from('logos').getPublicUrl(path).data.publicUrl : null
+
+  async function readSettings(): Promise<BusinessSettings> {
+    const row = await readBusiness()
+    return {
+      id: row.id,
+      name: row.name,
+      businessCode: row.business_code,
+      currencyCode: row.currency_code,
+      timezone: row.timezone,
+      address: row.address,
+      phone: row.phone,
+      receiptFooter: row.receipt_footer,
+      defaultLowStockLevel: row.default_low_stock_level,
+      logoUrl: logoUrl(row.logo_path),
+      accessEndsAt: row.subscription_ends_at ? isoTime(row.subscription_ends_at) : null,
+    }
+  }
+
+  const business: BusinessApi = {
     async get() {
       await requireRole(['owner', 'staff'])
-      const row = await readBusiness()
-      const settings: BusinessSettings = {
-        id: row.id,
-        name: row.name,
-        businessCode: row.business_code,
-        currencyCode: row.currency_code,
-        timezone: row.timezone,
-        address: row.address,
-        phone: row.phone,
-        receiptFooter: row.receipt_footer,
-        defaultLowStockLevel: row.default_low_stock_level,
-        // Logos are stored files from step 2D; until then there is none to show.
-        logoUrl: null,
-        accessEndsAt: row.subscription_ends_at ? isoTime(row.subscription_ends_at) : null,
+      return readSettings()
+    },
+
+    async update(input) {
+      await requireRole(['owner'])
+      // Checked first, so a bad picture never leaves the other settings half saved.
+      if (typeof input.logo === 'string' && !isLogoDataUrl(input.logo)) {
+        throw new AppError('validation')
       }
-      return settings
+      await rpc(
+        'update_business_settings',
+        {
+          p_name: input.name,
+          p_currency_code: input.currencyCode,
+          p_timezone: input.timezone,
+          p_address: input.address,
+          p_phone: input.phone,
+          p_receipt_footer: input.receiptFooter,
+          p_default_low_stock_level: input.defaultLowStockLevel,
+        },
+        z.unknown(),
+      )
+      // Left out: keep the logo. Null: remove it. A picture: store it. Only an
+      // Edge Function may write to Storage.
+      if (input.logo !== undefined) {
+        await callFunction(
+          client,
+          options,
+          'update-business-logo',
+          { logo: input.logo },
+          z.object({ logoPath: z.string().nullable() }),
+        )
+      }
+      return readSettings()
     },
   }
 

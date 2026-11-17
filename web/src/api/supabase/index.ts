@@ -5,16 +5,15 @@ import type { TallyboxApi } from '../types'
 import { createAccountsApi } from './accounts'
 import { createTallyboxClient, type SupabaseApiOptions } from './client'
 import { createOrdersApi } from './orders'
+import { createReportsApi } from './reports'
 import { createStockApi } from './stock'
 
 /**
- * The Supabase implementation of TallyboxApi (Phase 2).
- *
- * Built feature by feature, each part passing the same contract tests as the
- * demo: 2A sign-in, registration, staff accounts and the developer portal (done);
- * 2B items, supplies and stock (done); 2C orders, held orders and
- * reading business details for receipts (done); 2D reports, staff management and
- * settings. Parts not built yet answer "not set up yet".
+ * The Supabase implementation of TallyboxApi (Phase 2), built feature by
+ * feature, each part passing the same contract tests as the demo: 2A sign-in,
+ * registration, staff accounts and the developer portal; 2B items, supplies
+ * and stock; 2C orders and held orders; 2D the dashboard, reports, staff
+ * management and settings. Without settings every call answers "not set up yet".
  */
 
 const notYet = (): Promise<never> => Promise.reject(new AppError('config_missing'))
@@ -27,6 +26,8 @@ export function browserSupabaseOptions(): SupabaseApiOptions {
     staffEmailDomain: env.staffEmailDomain,
     deviceId: browserDeviceId,
     isOnline: () => navigator.onLine,
+    // Read before the Supabase client takes the sign-in out of the address.
+    openedPasswordResetLink: /[#&]type=recovery(&|$)/.test(window.location.hash),
   }
 }
 
@@ -43,6 +44,7 @@ export function createSupabaseApi(
   const { auth, registration, staff, admin } = createAccountsApi(client, options)
   const { items, supplies, stock } = createStockApi(client, options)
   const { orders, held, business } = createOrdersApi(client, options, { items, supplies })
+  const reports = createReportsApi(client, options, { items, supplies })
 
   return {
     source: 'supabase',
@@ -55,8 +57,8 @@ export function createSupabaseApi(
     held,
     stock,
     supplies,
-    reports: { dashboard: notYet, summary: notYet, exportOrders: notYet },
-    business: { get: business.get, update: notYet },
+    reports,
+    business,
     admin,
     demo: null,
   }
@@ -67,7 +69,14 @@ function notConfigured(): TallyboxApi {
   return {
     source: 'supabase',
     requiresCaptcha: true,
-    auth: { signIn: notYet, getSession: notYet, signOut: notYet, changePassword: notYet },
+    auth: {
+      signIn: notYet,
+      getSession: notYet,
+      signOut: notYet,
+      changePassword: notYet,
+      readPasswordResetLink: () => Promise.resolve(null),
+      completePasswordReset: notYet,
+    },
     registration: { isBusinessCodeAvailable: notYet, registerBusiness: notYet },
     staff: { list: notYet, create: notYet, resetPassword: notYet, setActive: notYet },
     items: {

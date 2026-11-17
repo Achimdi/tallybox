@@ -949,6 +949,8 @@ export type Database = {
       }
       get_actor: { Args: { p_user_id: string }; Returns: Json }
       get_session_state: { Args: { p_record_login?: boolean }; Returns: Json }
+      owner_dashboard: { Args: never; Returns: Json }
+      owner_precheck: { Args: { p_owner_id: string }; Returns: string }
       rate_limit_hit: {
         Args: { p_key: string; p_max: number; p_window_seconds: number }
         Returns: boolean
@@ -979,6 +981,7 @@ export type Database = {
       }
       restore_item: { Args: { p_item_id: string }; Returns: undefined }
       restore_supply: { Args: { p_supply_id: string }; Returns: undefined }
+      sales_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       save_held_order: {
         Args: {
           p_customer_name: string
@@ -989,9 +992,33 @@ export type Database = {
         }
         Returns: string
       }
+      set_business_logo: {
+        Args: { p_logo_path: string; p_owner_id: string }
+        Returns: string
+      }
+      set_staff_active: {
+        Args: { p_active: boolean; p_staff_id: string }
+        Returns: undefined
+      }
       staff_precheck: {
         Args: { p_owner_id: string; p_username: string }
         Returns: Json
+      }
+      staff_reset_precheck: {
+        Args: { p_owner_id: string; p_staff_id: string }
+        Returns: undefined
+      }
+      update_business_settings: {
+        Args: {
+          p_address: string
+          p_currency_code: string
+          p_default_low_stock_level: number
+          p_name: string
+          p_phone: string
+          p_receipt_footer: string
+          p_timezone: string
+        }
+        Returns: undefined
       }
       upsert_item: {
         Args: {

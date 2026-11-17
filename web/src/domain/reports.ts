@@ -85,6 +85,37 @@ export function itemSales(
   return [...byItem.values()].sort((a, b) => b.sales - a.sales || b.quantity - a.quantity)
 }
 
+/** How many low-stock items and supplies the dashboard lists. */
+export const DASHBOARD_LOW_LIMIT = 10
+
+interface StockLevel {
+  name: string
+  quantity: number
+  lowStockLevel: number
+  active: boolean
+}
+
+const emptiestFirst = (a: StockLevel, b: StockLevel) =>
+  a.quantity - b.quantity || a.name.localeCompare(b.name)
+
+/** Items on sale that count their own stock and are at or below their low-stock level, emptiest first. */
+export function lowStockItems<Item extends StockLevel & { tracksOwnStock: boolean }>(
+  items: readonly Item[],
+): Item[] {
+  return items
+    .filter((item) => item.active && item.tracksOwnStock && item.quantity <= item.lowStockLevel)
+    .sort(emptiestFirst)
+    .slice(0, DASHBOARD_LOW_LIMIT)
+}
+
+/** Supplies in use at or below their low-stock level, emptiest first. */
+export function lowSupplies<Supply extends StockLevel>(supplies: readonly Supply[]): Supply[] {
+  return supplies
+    .filter((supply) => supply.active && supply.quantity <= supply.lowStockLevel)
+    .sort(emptiestFirst)
+    .slice(0, DASHBOARD_LOW_LIMIT)
+}
+
 export type Trend = { direction: 'up' | 'down' | 'flat'; label: string }
 
 /** "12% vs yesterday", "New today", "Same as yesterday". */

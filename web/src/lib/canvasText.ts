@@ -62,6 +62,9 @@ export function wrapText(
 export function loadImage(source: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const image = new Image()
+    // A logo from Storage is on another address. Asking for it with CORS keeps
+    // the canvas exportable (otherwise the receipt picture can't be saved).
+    if (!source.startsWith('data:')) image.crossOrigin = 'anonymous'
     image.onload = () => resolve(image)
     image.onerror = () => resolve(null)
     image.src = source

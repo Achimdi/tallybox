@@ -17,6 +17,7 @@ import {
 import { hitRateLimit, type RateCounters } from '@/domain/rateLimit'
 import {
   isValidBusinessCode,
+  isLogoDataUrl,
   isValidUsername,
   isWellFormedActivationCode,
   LIMITS,
@@ -33,7 +34,7 @@ import {
   type CartLine,
   type StockFacts,
 } from '@/domain/orders'
-import { itemSales, summarizeDay } from '@/domain/reports'
+import { itemSales, lowStockItems, lowSupplies, summarizeDay } from '@/domain/reports'
 import { buildSalesReport, inRange, isValidRange, type SupplySaleFact } from '@/domain/salesReport'
 import { availableToSell, SUPPLY_LIMITS, validSupplyUses, type SupplyUse } from '@/domain/supplies'
 import {
@@ -710,6 +711,17 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         user.passwordHash = await hashPassword(newPassword, salt)
         store.write(db)
       },
+
+      // Demo reset links are pretend (https://reset.demo.invalid/...): nothing to open.
+      async readPasswordResetLink() {
+        await begin()
+        return null
+      },
+
+      async completePasswordReset() {
+        await begin()
+        fail('reset_link_invalid')
+      },
     },
 
     registration: {
@@ -1247,27 +1259,12 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           today: summarizeDay(orders, today),
           yesterday: summarizeDay(orders, addDays(today, -1)),
           topItemsToday: itemSales(orders, (order) => order.dateKey === today).slice(0, 5),
-          lowStock: db.items
-            .filter(
-              (item) =>
-                item.businessId === business.id &&
-                item.active &&
-                item.tracksOwnStock &&
-                item.quantity <= item.lowStockLevel,
-            )
-            .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
-            .slice(0, 10)
-            .map(toItem(db)),
-          lowSupplies: db.supplies
-            .filter(
-              (supply) =>
-                supply.businessId === business.id &&
-                supply.active &&
-                supply.quantity <= supply.lowStockLevel,
-            )
-            .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name))
-            .slice(0, 10)
-            .map(toSupply(db)),
+          lowStock: lowStockItems(db.items.filter((item) => item.businessId === business.id)).map(
+            toItem(db),
+          ),
+          lowSupplies: lowSupplies(
+            db.supplies.filter((supply) => supply.businessId === business.id),
+          ).map(toSupply(db)),
         }
       },
 
@@ -1340,9 +1337,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           !currencyKnown ||
           !isValidTimeZone(input.timezone) ||
           !isWholeIn(input.defaultLowStockLevel, 0, STOCK_LIMITS.maxLowStockLevel) ||
-          (typeof input.logo === 'string' &&
-            (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.logo) ||
-              input.logo.length > 300_000))
+          (typeof input.logo === 'string' && !isLogoDataUrl(input.logo))
         ) {
           fail('validation')
         }

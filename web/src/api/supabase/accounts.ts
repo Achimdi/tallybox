@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { staffEmail } from '@/domain/rules'
+import { PASSWORD_MAX, PASSWORD_MIN, staffEmail } from '@/domain/rules'
 import { AppError, type AppErrorCode } from '@/lib/errors'
 import type {
   AdminApi,
@@ -16,6 +16,7 @@ import {
   callFunction,
   callRpc,
   fromReadError,
+  isUuid,
   requireSignedInRole,
   type Role,
   type SupabaseApiOptions,
@@ -272,6 +273,9 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     return interpretSessionState(state, data.session?.user.email ?? null)
   }
 
+  // Set when this page was opened from a password-reset link; used up once the password is set.
+  let resetLinkUsable = options.openedPasswordResetLink ?? false
+
   const auth: AuthApi = {
     async signIn(input) {
       if (!options.isOnline()) throw new AppError('offline')
@@ -342,6 +346,25 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
       const { error } = await client.auth.updateUser({ password: newPassword })
       if (error) throw fromAuthError(error, options.isOnline)
     },
+
+    async readPasswordResetLink() {
+      // Only right after opening the link: never for an ordinary sign-in.
+      if (!resetLinkUsable) return null
+      const { data } = await client.auth.getSession()
+      const user = data.session?.user
+      const role = (user?.app_metadata as { role?: unknown } | undefined)?.role
+      return user?.email && role === 'owner' ? { email: user.email } : null
+    },
+
+    async completePasswordReset({ newPassword }) {
+      if (!(await auth.readPasswordResetLink())) throw new AppError('reset_link_invalid')
+      if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX) {
+        throw new AppError('weak_password')
+      }
+      const { error } = await client.auth.updateUser({ password: newPassword })
+      if (error) throw fromAuthError(error, options.isOnline)
+      resetLinkUsable = false
+    },
   }
 
   const registration: RegistrationApi = {
@@ -386,8 +409,6 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
     return z.array(staffRow).parse(data).map(toStaffMember)
   }
 
-  const notYet = (): Promise<never> => Promise.reject(new AppError('config_missing'))
-
   const staff: StaffApi = {
     list: readStaff,
     async create(input) {
@@ -400,9 +421,20 @@ export function createAccountsApi(client: TallyboxClient, options: SupabaseApiOp
       if (!member) throw new AppError('server')
       return member
     },
-    // Phase 2D.
-    resetPassword: notYet,
-    setActive: notYet,
+    async resetPassword({ staffId, newPassword }) {
+      await requireRole(['owner'])
+      if (!isUuid(staffId)) throw new AppError('not_found')
+      // Only the secret key can set someone else's password: an Edge Function.
+      await fn('reset-staff-password', { staffId, newPassword }, z.object({ ok: z.literal(true) }))
+    },
+    async setActive({ staffId, active }) {
+      await requireRole(['owner'])
+      if (!isUuid(staffId)) throw new AppError('not_found')
+      await rpc('set_staff_active', { p_staff_id: staffId, p_active: active }, z.unknown())
+      const member = (await readStaff()).find((candidate) => candidate.id === staffId)
+      if (!member) throw new AppError('not_found')
+      return member
+    },
   }
 
   const admin: AdminApi = {

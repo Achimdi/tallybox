@@ -29,8 +29,14 @@ const developer = {
 }
 const ready = Boolean(url && publishableKey && developer.email && developer.password)
 
-/** What Supabase has so far. Contract tests needing anything else are skipped. */
-const BUILT: readonly ShopFeature[] = ['orders']
+/** What Supabase has so far: everything, since step 2D. */
+const BUILT: readonly ShopFeature[] = [
+  'orders',
+  'dashboard',
+  'reports',
+  'staffManagement',
+  'settings',
+]
 
 /**
  * Supabase allows about 150 password sign-ins per 5 minutes from one address

@@ -142,3 +142,18 @@ export const LIMITS = {
   activationCodeDaysMin: 1,
   activationCodeDaysMax: 90,
 } as const
+
+/**
+ * The longest logo the app sends: a small picture as a data URL. The demo, the
+ * database's Edge Function (supabase/functions/_shared/logo.ts) and the
+ * settings screen all use this limit.
+ */
+export const LOGO_MAX_LENGTH = 300_000
+
+/** A PNG, JPEG or WebP picture as a data URL, no longer than LOGO_MAX_LENGTH. */
+export function isLogoDataUrl(value: string): boolean {
+  return (
+    value.length <= LOGO_MAX_LENGTH &&
+    /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
+  )
+}

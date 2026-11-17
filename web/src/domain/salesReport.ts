@@ -89,7 +89,7 @@ export function inRange(dateKey: string, range: ReportRange): boolean {
   return dateKey >= range.from && dateKey <= range.to
 }
 
-interface CatalogueItem {
+export interface CatalogueItem {
   id: string
   name: string
   quantity: number
@@ -99,7 +99,7 @@ interface CatalogueItem {
   tracksOwnStock?: boolean
 }
 
-interface CatalogueSupply {
+export interface CatalogueSupply {
   id: string
   name: string
   unit: string | null
@@ -139,9 +139,6 @@ export function buildSalesReport(
   ) as Record<PaymentMethod, SalesByKey>
   const byStaff = new Map<string, StaffSales>()
   const byDay = new Map<string, DaySales>()
-  for (let key = range.from; key <= range.to; key = addDays(key, 1)) {
-    byDay.set(key, { dateKey: key, sales: 0, orders: 0 })
-  }
 
   let sales = 0
   let count = 0
@@ -167,20 +164,14 @@ export function buildSalesReport(
     staff.sales += order.total
     staff.orders += 1
     byStaff.set(order.staffId, staff)
-    const day = byDay.get(order.dateKey)
-    if (day) {
-      day.sales += order.total
-      day.orders += 1
-    }
+    const day = byDay.get(order.dateKey) ?? { dateKey: order.dateKey, sales: 0, orders: 0 }
+    day.sales += order.total
+    day.orders += 1
+    byDay.set(order.dateKey, day)
   }
 
   // Best sellers from the orders, then every other item on sale with nothing sold.
   const sold = itemSales(inside, () => true)
-  const soldIds = new Set(sold.map((entry) => entry.itemId))
-  const unsold = catalogue
-    .filter((item) => item.active && !soldIds.has(item.id))
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((item) => ({ itemId: item.id, name: item.name, quantity: 0, sales: 0 }))
 
   return {
     from: range.from,
@@ -192,11 +183,41 @@ export function buildSalesReport(
     voidedTotal,
     byPaymentMethod,
     byStaff: [...byStaff.values()].sort((a, b) => b.sales - a.sales),
-    byDay: [...byDay.values()],
-    items: [...sold, ...unsold],
+    byDay: fillDays(range, [...byDay.values()]),
+    items: [...sold, ...unsoldItems(catalogue, sold)],
     stockValue: valueStock(catalogue, costs, supplyFacts),
     supplies: reportSupplies(inside, supplyFacts),
   }
+}
+
+/** Every day of the range in order, with the days that had sales filled in. */
+export function fillDays(range: ReportRange, days: readonly DaySales[]): DaySales[] {
+  const known = new Map(days.map((day) => [day.dateKey, day]))
+  const result: DaySales[] = []
+  for (let key = range.from; key <= range.to; key = addDays(key, 1)) {
+    result.push(known.get(key) ?? { dateKey: key, sales: 0, orders: 0 })
+  }
+  return result
+}
+
+/** Items on sale that sold nothing, by name, to follow the best sellers. */
+export function unsoldItems(
+  catalogue: readonly CatalogueItem[],
+  sold: readonly ItemSales[],
+): ItemSales[] {
+  const soldIds = new Set(sold.map((entry) => entry.itemId))
+  return catalogue
+    .filter((item) => item.active && !soldIds.has(item.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((item) => ({ itemId: item.id, name: item.name, quantity: 0, sales: 0 }))
+}
+
+/** How much of one supply one item used, from completed orders in the range. */
+export interface SupplyUsage {
+  supplyId: string
+  sourceItemId: string | null
+  sourceItemName: string | null
+  used: number
 }
 
 /** Supply use counts completed orders in the range only; a voided order used nothing. */
@@ -204,22 +225,40 @@ function reportSupplies(inside: readonly ReportOrder[], facts: SupplyFacts): Sup
   const completed = new Set(
     inside.filter((order) => order.status === 'completed' && order.id).map((order) => order.id),
   )
-  return facts.supplies
+  const usage = facts.sales
+    .filter((sale) => sale.orderId && completed.has(sale.orderId))
+    .map((sale) => ({
+      supplyId: sale.supplyId,
+      sourceItemId: sale.sourceItemId,
+      sourceItemName: sale.sourceItemName,
+      used: -sale.delta,
+    }))
+  return supplyReports(facts.supplies, usage)
+}
+
+/**
+ * Each supply in use (or used in the range): how much was used, by which item
+ * (most first), and how much is left now. Supplies with no use are listed too.
+ */
+export function supplyReports(
+  supplies: readonly CatalogueSupply[],
+  usage: readonly SupplyUsage[],
+): SupplyReport[] {
+  return supplies
     .map((supply) => {
       const byItem = new Map<string, { itemId: string; name: string; used: number }>()
       let used = 0
-      for (const sale of facts.sales) {
-        if (sale.supplyId !== supply.id || !sale.orderId || !completed.has(sale.orderId)) continue
-        const amount = -sale.delta
-        used += amount
-        const key = sale.sourceItemId ?? 'unknown'
-        const entry = byItem.get(key) ?? {
+      for (const entry of usage) {
+        if (entry.supplyId !== supply.id) continue
+        used += entry.used
+        const key = entry.sourceItemId ?? 'unknown'
+        const item = byItem.get(key) ?? {
           itemId: key,
-          name: sale.sourceItemName ?? 'An item',
+          name: entry.sourceItemName ?? 'An item',
           used: 0,
         }
-        entry.used += amount
-        byItem.set(key, entry)
+        item.used += entry.used
+        byItem.set(key, item)
       }
       return {
         supplyId: supply.id,
@@ -236,7 +275,8 @@ function reportSupplies(inside: readonly ReportOrder[], facts: SupplyFacts): Sup
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function valueStock(
+/** Stock on hand now, valued at cost and at price. Null when nothing has a cost price. */
+export function valueStock(
   catalogue: readonly CatalogueItem[],
   costs: Readonly<Record<string, number>>,
   supplyFacts: SupplyFacts,

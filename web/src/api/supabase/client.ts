@@ -42,6 +42,8 @@ export interface SupabaseApiOptions {
   /** A random id for this device, sent so the server can limit repeated attempts. */
   deviceId: () => string
   isOnline: () => boolean
+  /** True when this page was opened from an owner's one-time password-reset link. */
+  openedPasswordResetLink?: boolean
 }
 
 export function createTallyboxClient(options: SupabaseApiOptions): TallyboxClient {
@@ -121,7 +123,9 @@ export async function callFunction<Schema extends z.ZodType>(
 }
 
 type RpcName = keyof Database['public']['Functions']
-type RpcArgs<Name extends RpcName> = Database['public']['Functions'][Name]['Args']
+type RpcArgs<Name extends RpcName> = [Database['public']['Functions'][Name]['Args']] extends [never]
+  ? Record<string, never> // a function that takes no arguments
+  : Database['public']['Functions'][Name]['Args']
 
 export async function callRpc<Name extends RpcName, Schema extends z.ZodType>(
   client: TallyboxClient,
