@@ -6,7 +6,7 @@ import { createTestApi } from '@/test/mockApi'
 import { renderApp } from '@/test/render'
 
 /** The pages a front-page link may lead to. */
-const PAGES = new Set(['/', '/register', '/login/owner', '/login/staff'])
+const PAGES = new Set(['/', '/register', '/login/owner', '/login/staff', '/support', '/privacy'])
 // The design gallery link only exists in development builds (tests run as development).
 if (import.meta.env.DEV) PAGES.add('/dev/gallery')
 

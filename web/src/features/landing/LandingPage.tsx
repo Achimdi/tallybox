@@ -542,9 +542,17 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-line">
-            <p className="mx-auto w-full max-w-6xl px-4 py-5 text-caption text-ink-muted tabular-nums sm:px-6">
-              © {new Date().getFullYear()} Tallybox · v{APP_VERSION}
-            </p>
+            <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-5 text-caption text-ink-muted sm:px-6">
+              <span className="tabular-nums">
+                © {new Date().getFullYear()} Tallybox · v{APP_VERSION}
+              </span>
+              <Link to="/support" className="hover:text-ink">
+                Support
+              </Link>
+              <Link to="/privacy" className="hover:text-ink">
+                Privacy
+              </Link>
+            </div>
           </div>
         </footer>
       </div>

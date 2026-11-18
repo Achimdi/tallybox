@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { BackLink } from '@/components/BackLink'
 
 const TOPICS: readonly { question: string; answer: ReactNode }[] = [
@@ -63,6 +64,17 @@ export default function HelpPage() {
           </details>
         ))}
       </div>
+      <p className="text-body text-ink-muted">
+        Still stuck? See{' '}
+        <Link to="/support" className="font-semibold text-primary underline">
+          Support
+        </Link>{' '}
+        to reach us, and{' '}
+        <Link to="/privacy" className="font-semibold text-primary underline">
+          Privacy
+        </Link>{' '}
+        for how your information is looked after.
+      </p>
     </div>
   )
 }

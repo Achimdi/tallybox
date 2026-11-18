@@ -22,6 +22,8 @@ const StaffLoginPage = lazy(() => import('@/features/auth/StaffLoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/features/auth/ResetPasswordPage'))
+const PrivacyPage = lazy(() => import('@/features/legal/PrivacyPage'))
+const SupportPage = lazy(() => import('@/features/legal/SupportPage'))
 const SuspendedPage = lazy(() => import('@/features/auth/SuspendedPage'))
 
 // Selling (staff and owners)
@@ -90,6 +92,9 @@ export const routes: RouteObject[] = [
           },
         ],
       },
+      // Reading pages anyone can open, signed in or not.
+      { path: 'privacy', Component: PrivacyPage },
+      { path: 'support', Component: SupportPage },
       {
         element: <PublicLayout />,
         children: [

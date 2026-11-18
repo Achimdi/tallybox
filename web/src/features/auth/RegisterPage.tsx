@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CircleCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { useApi } from '@/api/context'
 import { Banner, ErrorBanner } from '@/components/Banner'
@@ -270,7 +270,17 @@ export default function RegisterPage() {
           Register business
         </Button>
         <p className="text-center text-label font-normal text-ink-muted">
-          No activation code? Contact {SUPPORT_EMAIL}.
+          No activation code? Contact {SUPPORT_EMAIL}, or see{' '}
+          <Link to="/support" className="font-semibold text-primary underline">
+            Support
+          </Link>
+          .
+        </p>
+        <p className="text-center text-label font-normal text-ink-muted">
+          How we look after your information:{' '}
+          <Link to="/privacy" className="font-semibold text-primary underline">
+            Privacy
+          </Link>
         </p>
       </form>
     </AuthPage>

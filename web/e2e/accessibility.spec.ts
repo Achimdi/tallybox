@@ -64,3 +64,13 @@ test('staff management passes automated accessibility checks', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Set new password' })).toBeVisible()
   await expectAccessible(page)
 })
+
+test('the privacy and support pages pass automated accessibility checks', async ({ page }) => {
+  await page.goto('/privacy')
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy' })).toBeVisible()
+  await expectAccessible(page)
+
+  await page.goto('/support')
+  await expect(page.getByRole('heading', { level: 1, name: 'Help and support' })).toBeVisible()
+  await expectAccessible(page)
+})
