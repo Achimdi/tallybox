@@ -2,8 +2,8 @@
  * TallyboxApi: the ONE way screens get and change data.
  *
  * No component talks to a data source directly. There are two implementations:
- *   - mock      (Phase 1): demo data kept in this browser, enforcing the real rules
- *   - supabase  (Phase 2): the real backend
+ *   - mock:     demo data kept in this browser, enforcing the real rules
+ *   - supabase: the real backend
  * `VITE_DATA_SOURCE` picks one. Both must pass the same contract tests
  * (src/api/contract), so swapping them changes nothing the screens can see.
  *
@@ -11,9 +11,6 @@
  *   - It acts as the person who is signed in (like a real server would).
  *   - It fails only with an AppError carrying a known code (src/lib/errors.ts).
  *   - Dates are ISO strings. Money is whole minor units.
- *
- * Step 1A covers sign-in, registration, staff accounts and the developer
- * portal. Items, stock, orders, reports and settings are added in 1B and 1C.
  */
 
 import type { AccessFilter, BusinessStatus } from '@/domain/access'
@@ -126,7 +123,7 @@ export interface RegistrationApi {
 }
 
 // ---------------------------------------------------------------------------
-// Items (read by staff and owners; cost prices are owner-only and come in 1C)
+// Items (read by staff and owners; cost prices are owner-only)
 // ---------------------------------------------------------------------------
 
 export interface Item {
@@ -325,7 +322,7 @@ export interface StockApi {
 }
 
 // ---------------------------------------------------------------------------
-// Reports (owner only; the full Reports screen arrives in step 1D)
+// Reports (owner only)
 // ---------------------------------------------------------------------------
 
 export interface Dashboard {
@@ -371,7 +368,7 @@ export interface BusinessSettings {
   phone: string | null
   receiptFooter: string | null
   defaultLowStockLevel: number
-  /** A small image (data URL) in demo mode; a stored file in Phase 2. */
+  /** A small image (data URL) in demo mode; a stored file on Supabase. */
   logoUrl: string | null
   /** The faint mark behind receipts: Tallybox by default, the owner's own, or none. */
   watermark: WatermarkSettings

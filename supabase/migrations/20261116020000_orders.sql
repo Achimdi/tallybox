@@ -1,4 +1,4 @@
--- Phase 2C: orders, held orders and daily totals.
+-- Orders, held orders and daily totals.
 --
 -- The rules (the same as web/src/domain/orders.ts and supplies.ts, checked by
 -- the shared contract tests):

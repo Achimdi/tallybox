@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-/** Step 1B: the staff portal in the production build, on demo data. */
+/** The staff portal in the production build, on demo data. */
 
 async function signInAsAda(page: Page) {
   await page.goto('/login/staff')

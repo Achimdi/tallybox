@@ -23,7 +23,7 @@ const envSchema = z.object({
   VITE_STAFF_EMAIL_DOMAIN: optionalText,
 })
 
-/** Where data comes from. `mock` (demo data in this browser) until Phase 2. */
+/** Where data comes from. `mock` (demo data in this browser) unless set. */
 export type DataSource = 'mock' | 'supabase'
 
 /** `client` marks a build for real clients, which must never use demo data. */
@@ -35,7 +35,7 @@ export interface AppEnv {
   supabaseUrl: string | undefined
   supabasePublishableKey: string | undefined
   turnstileSiteKey: string | undefined
-  /** Domain for made-up staff sign-in addresses (Phase 2). */
+  /** Domain for made-up staff sign-in addresses. */
   staffEmailDomain: string
 }
 

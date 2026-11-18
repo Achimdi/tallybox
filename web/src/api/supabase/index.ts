@@ -9,11 +9,10 @@ import { createReportsApi } from './reports'
 import { createStockApi } from './stock'
 
 /**
- * The Supabase implementation of TallyboxApi (Phase 2), built feature by
- * feature, each part passing the same contract tests as the demo: 2A sign-in,
- * registration, staff accounts and the developer portal; 2B items, supplies
- * and stock; 2C orders and held orders; 2D the dashboard, reports, staff
- * management and settings. Without settings every call answers "not set up yet".
+ * The Supabase implementation of TallyboxApi, in parts that each pass the same
+ * contract tests as the demo: sign-in, registration, staff accounts and the
+ * developer portal (accounts); items, supplies and stock (stock); orders, held
+ * orders and settings (orders); the dashboard and reports (reports). Without settings every call answers "not set up yet".
  */
 
 const notYet = (): Promise<never> => Promise.reject(new AppError('config_missing'))

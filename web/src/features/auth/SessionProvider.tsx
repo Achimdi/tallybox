@@ -19,8 +19,8 @@ import {
  * suspended, its access ended, or the account was turned off in the meantime,
  * the person is signed out and sent to the right screen.
  *
- * This decides which SCREENS show. It is not security: in Phase 2 the
- * database refuses the data regardless of what the browser thinks.
+ * This decides which SCREENS show. It is not security: the database refuses
+ * the data regardless of what the browser thinks.
  */
 
 /** Do not re-ask more often than this on focus changes. */

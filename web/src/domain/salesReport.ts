@@ -4,7 +4,7 @@ import { itemSales, type ItemSales, type OrderFacts } from './reports'
 
 /**
  * The owner's sales report for a range of business days. Like the dashboard,
- * this defines what each number means; in Phase 2 the database does the sums.
+ * this defines what each number means; on Supabase the database does the sums.
  * Voided orders never count as sales; they are reported on their own.
  */
 

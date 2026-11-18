@@ -1,6 +1,6 @@
 -- pgTAP: the standing security rules, checked against the whole schema.
 -- These tests do not name individual tables, so every table and function added
--- in a later phase is covered automatically. If one of them fails after a new
+-- later is covered automatically. If one of them fails after a new
 -- migration, the migration opened something it should not have.
 
 begin;
@@ -89,22 +89,22 @@ select bag_eq(
     'admin_get_business',
     'admin_list_activation_codes',
     'admin_platform_counts',
-    -- Phase 2: items and stock (each checks live that the caller is an owner)
+    -- Items and stock (each checks live that the caller is an owner)
     'upsert_item',
     'archive_item',
     'restore_item',
     'record_restock',
     'adjust_stock',
-    -- Phase 2B: shared supplies
+    -- Shared supplies
     'upsert_supply',
     'archive_supply',
     'restore_supply',
-    -- Phase 2C: orders (each checks live who the caller is)
+    -- Orders (each checks live who the caller is)
     'create_order',
     'void_order',
     'save_held_order',
     'discard_held_order',
-    -- Phase 2D: reports, staff on/off, settings (each checks live that the caller is an owner)
+    -- Reports, staff on/off, settings (each checks live that the caller is an owner)
     'owner_dashboard',
     'sales_report',
     'set_staff_active',

@@ -2,8 +2,8 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Automated WCAG 2.1 A and AA checks for the screens added after the 1D pass:
- * held orders on New order, the owner reset-link page and staff management.
+ * Automated WCAG 2.1 A and AA checks for held orders on New order, the owner
+ * reset-link page, staff management, and the privacy and support pages.
  */
 
 async function expectAccessible(page: Page) {

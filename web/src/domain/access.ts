@@ -2,7 +2,7 @@
  * Who may use Tallybox right now: the single access rule.
  *
  * Every access decision goes through `businessAccessState` (the browser-side
- * twin of the database's `business_has_access()` in Phase 2). Nothing else may
+ * twin of the database's `business_has_access()`). Nothing else may
  * look at `status` or the end date directly. Later, payment status can be added
  * here without touching any screen.
  */

@@ -1,4 +1,4 @@
--- Phase 3A: findings from Supabase's security and performance advisors.
+-- Findings from Supabase's security and performance advisors.
 --
 -- 1. New hosted projects come with public.rls_auto_enable(), the function
 --    behind Supabase's "ensure_rls" event trigger (new tables get Row Level

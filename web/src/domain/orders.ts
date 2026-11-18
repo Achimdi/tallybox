@@ -1,6 +1,6 @@
 /**
- * Order rules, shared by the screens, the mock data layer and (in Phase 2)
- * the database. Pure functions: no storage, no clock.
+ * Order rules, shared by the screens, the mock data layer and (in SQL) the
+ * database. Pure functions: no storage, no clock.
  *
  * The big rules:
  *   - An order is confirmed only after "Payment received" is ticked.

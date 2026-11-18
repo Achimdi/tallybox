@@ -1,4 +1,4 @@
--- Phase 2B: shared supplies (stock counted by packaging or materials).
+-- Shared supplies (stock counted by packaging or materials).
 --
 -- Some businesses count the packaging, not each product: apple juice, Fanta and
 -- Coke all use the same 300 ml bottle, and the business tracks 1,000 bottles.
@@ -9,7 +9,7 @@
 --
 -- The same rules are written in web/src/domain/supplies.ts and checked by the
 -- shared contract tests (web/src/api/contract/supplies.contract.ts).
--- Sales and voids that deduct supplies arrive with orders (Phase 2C).
+-- Sales and voids that deduct supplies arrive with orders.
 
 -- ---------------------------------------------------------------------------
 -- Tables
@@ -27,7 +27,7 @@ create table public.supplies (
   name text not null check (char_length(name) between 1 and 80),
   name_lower text generated always as (lower(name)) stored,
   unit text check (char_length(unit) between 1 and 20),
-  -- Whole units on hand. Changed only by the functions below (and orders, Phase 2C).
+  -- Whole units on hand. Changed only by the functions below (and orders).
   quantity integer not null default 0 check (quantity >= 0),
   low_stock_level integer not null default 0 check (low_stock_level between 0 and 1000000),
   -- false = archived. Supplies are never deleted.

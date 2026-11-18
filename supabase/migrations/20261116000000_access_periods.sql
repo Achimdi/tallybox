@@ -1,4 +1,4 @@
--- Phase 2A: access periods.
+-- Access periods.
 --
 -- v1 has no payments and no paywall. The super-admin grants each business a
 -- time-limited access period by hand:
@@ -194,7 +194,7 @@ $$;
 
 grant execute on function public.admin_list_businesses() to authenticated;
 
--- One business in detail. Order counts are added when orders exist (Phase 2C).
+-- One business in detail. Order counts are added with orders.
 create function public.admin_get_business(p_business_id uuid) returns jsonb
 language plpgsql
 stable

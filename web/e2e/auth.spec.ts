@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Step 1A in the real production build, on the demo data layer (data kept in
- * this browser). Each test starts with a fresh browser, so fresh demo data.
+ * Sign-in, registration and the developer portal in the real production build,
+ * on the demo data layer (data kept in this browser). Each test starts with a fresh browser, so fresh demo data.
  */
 
 const PASSWORD = 'demo1234'

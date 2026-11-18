@@ -22,7 +22,7 @@ import {
 import { ORDER_COLUMNS, orderRow, toOrder } from './orders'
 
 /**
- * The owner's dashboard, sales reports and CSV export on Supabase (2D).
+ * The owner's dashboard, sales reports and CSV export on Supabase.
  *
  * The database adds up the orders (owner_dashboard, sales_report), so the
  * browser never reads whole tables. What is true now (low stock, stock value,

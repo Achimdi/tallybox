@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
 /**
- * Smoke tests against the production build. The full flow
- * (register, add item, place order, void order) is added as those phases land.
+ * Smoke tests against the production build. The main flows have their own
+ * files (auth, staff, owner, supplies, receipts and reports).
  */
 
 test('the front page offers every way in', async ({ page }) => {

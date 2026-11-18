@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-/** Step 1C: the owner portal in the production build, on demo data. */
+/** The owner portal in the production build, on demo data. */
 
 async function signInAsOwner(page: Page) {
   await page.goto('/login/owner')

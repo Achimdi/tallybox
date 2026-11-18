@@ -25,7 +25,7 @@ import {
 } from './client'
 
 /**
- * Items, shared supplies and stock on Supabase (Phase 2B).
+ * Items, shared supplies and stock on Supabase.
  *
  * Reads go straight to the tables, where Row Level Security decides what each
  * person may see. Every change goes through a database function, one

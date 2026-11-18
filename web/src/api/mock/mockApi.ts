@@ -95,10 +95,10 @@ function sameStockMode(a: StockMode, b: StockMode): boolean {
 }
 
 /**
- * The Phase 1 implementation of TallyboxApi: demo data kept in this browser.
+ * The demo implementation of TallyboxApi: demo data kept in this browser.
  *
- * It enforces the same rules the real backend will (and passes the same
- * contract tests), so the screens built on it need no change in Phase 2.
+ * It enforces the same rules as the real backend (and passes the same
+ * contract tests), so the screens work the same on either.
  * Each browser tab has its own signed-in person, while the data is shared by
  * all tabs, so the developer can act in one tab and see an owner's tab react.
  */

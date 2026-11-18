@@ -8,7 +8,7 @@ import { describeSuppliesContract } from '../contract/supplies.contract'
 import { createMockApi } from './mockApi'
 import { memoryStorage, STORAGE_KEY, type MockDb } from './store'
 
-// The shared contract: the Supabase implementation must pass the same tests in Phase 2.
+// The shared contract: the Supabase implementation passes the same tests (npm run test:live).
 describeAccountsContract('mock', async () => {
   const test = createTestApi()
   return Promise.resolve({

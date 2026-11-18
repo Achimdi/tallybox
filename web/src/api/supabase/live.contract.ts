@@ -37,7 +37,7 @@ const ready = Boolean(url && publishableKey && developer.email && developer.pass
  */
 const TEST_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
 
-/** What Supabase has so far: everything, since step 2D. */
+/** What the Supabase implementation covers: everything. */
 const BUILT: readonly ShopFeature[] = [
   'orders',
   'dashboard',

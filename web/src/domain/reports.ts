@@ -1,7 +1,7 @@
 import type { PaymentMethod } from './orders'
 
 /**
- * Sales figures, worked out from orders. In Phase 2 the database does the same
+ * Sales figures, worked out from orders. On Supabase the database does the same
  * sums (so the browser never reads whole tables); these functions define what
  * the numbers mean.
  *

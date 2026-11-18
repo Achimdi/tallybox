@@ -29,7 +29,7 @@ import {
 } from './client'
 
 /**
- * Orders, held orders and the business details receipts need, on Supabase (2C).
+ * Orders, held orders and the business details receipts need, on Supabase.
  *
  * Confirming, voiding and holding are database functions, one transaction
  * each, that check payment and stock themselves. When one refuses for stock,

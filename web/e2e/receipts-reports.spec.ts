@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
-/** Step 1D: receipts, reports and an accessibility check of the main screens, in the production build. */
+/** Receipts, reports and an accessibility check of the main screens, in the production build. */
 
 async function signIn(page: Page, who: 'owner' | 'staff') {
   if (who === 'owner') {

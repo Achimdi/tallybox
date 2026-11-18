@@ -3,7 +3,7 @@
  * codes and text lengths.
  *
  * Plain TypeScript with no imports, so the mock data layer, the screens and
- * (in Phase 2) the Supabase Edge Functions and database can all apply exactly
+ * the Supabase Edge Functions and database can all apply exactly
  * the same rules. If you change a rule here, change it there too.
  */
 

@@ -1,2 +1,2 @@
 -- Seed data for the local and CI database only. Never run against production.
--- Empty in Phase 0: the schema arrives in Phase 1.
+-- Empty: the migrations create everything the tests need.

@@ -7,8 +7,8 @@ import type { RegistrationInput, SessionResult, TallyboxApi } from '../types'
  * The contract every TallyboxApi implementation must keep, for sign-in,
  * registration, staff accounts and the developer portal.
  *
- * It runs against the mock now (src/api/mock/mockApi.test.ts) and against the
- * Supabase implementation in Phase 2, so both behave identically. It uses only
+ * It runs against the mock (src/api/mock/mockApi.test.ts) and against the
+ * Supabase implementation (npm run test:live), so both behave identically. It uses only
  * the public API: no peeking into how data is stored.
  */
 

@@ -1,4 +1,4 @@
--- Phase 1: businesses, profiles, activation codes, and who may see what.
+-- Businesses, profiles, activation codes, and who may see what.
 --
 -- How access works, in plain words:
 --   * The browser can only READ, and only rows that Row Level Security allows.

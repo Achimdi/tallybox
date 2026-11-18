@@ -1,4 +1,4 @@
--- Phase 2: items, cost prices, restocks, stock adjustments and the stock ledger.
+-- Items, cost prices, restocks, stock adjustments and the stock ledger.
 --
 -- The one rule that matters most here: an item's quantity only ever changes
 -- together with a row in stock_movements, inside the same function and the
@@ -128,7 +128,7 @@ create table public.stock_movements (
   -- Adjustments only.
   reason text check (reason in ('damaged', 'expired', 'lost_or_stolen', 'miscount', 'other')),
   note text check (char_length(note) <= 200),
-  -- Sales and voids (Phase 3 adds the link to orders).
+  -- Sales and voids (the link to orders is added with orders).
   order_id uuid,
   -- Restocks only.
   restock_id uuid,

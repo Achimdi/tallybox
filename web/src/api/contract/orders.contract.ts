@@ -4,7 +4,7 @@ import type { CreateOrderInput, Item, SignInInput, TallyboxApi } from '../types'
 
 /**
  * The contract for selling: items, orders, held orders and password changes.
- * Runs against the mock now and against Supabase in Phase 2.
+ * Runs against the mock and against Supabase (npm run test:live).
  *
  * The fixture provides a shop with at least two items that have stock, an
  * owner and two staff members.

@@ -7,7 +7,7 @@ import { homePathFor } from './paths'
 
 /**
  * Route guards decide which SCREENS a role can open. They are a convenience,
- * not security: in Phase 2 the database decides which DATA anyone can read,
+ * not security: the database decides which DATA anyone can read,
  * and server functions decide who can change anything.
  */
 

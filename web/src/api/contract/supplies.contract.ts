@@ -9,7 +9,7 @@ import { hasFeatures, type ShopFeature, type ShopFixture } from './orders.contra
  * The contract for shared supplies: stock counted by packaging or materials,
  * like 300 ml bottles used by several drinks. An item can count its own stock,
  * use shared supplies, both, or neither.
- * Runs against the mock now and against Supabase in Phase 2.
+ * Runs against the mock and against Supabase (npm run test:live).
  */
 
 async function errorOf(promise: Promise<unknown>): Promise<AppError> {

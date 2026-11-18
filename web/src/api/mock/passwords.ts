@@ -1,7 +1,7 @@
 /**
  * Demo passwords are stored only as a salted SHA-256 hash. Someone trying the
  * demo might type a password they use elsewhere, so it is never kept as text.
- * (The real backend in Phase 2 uses Supabase Auth instead.)
+ * (The real backend uses Supabase Auth instead.)
  */
 
 function toHex(bytes: ArrayBuffer | Uint8Array): string {

@@ -1,5 +1,5 @@
--- Phase 2D: the owner's dashboard and reports, turning staff accounts off and
--- on, business settings, and the logo bucket.
+-- The owner's dashboard and reports, turning staff accounts off and on,
+-- business settings, and the logo bucket.
 --
 -- The sums follow web/src/domain/reports.ts and salesReport.ts (checked by the
 -- shared contract tests): voided orders never count as sales and are counted

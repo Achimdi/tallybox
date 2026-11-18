@@ -7,7 +7,7 @@ import { hasFeatures, type ShopFeature, type ShopFixture } from './orders.contra
 /**
  * The contract for running a business: items, stock, voids, the owner's order
  * list, the dashboard, staff accounts and business settings.
- * Runs against the mock now and against Supabase in Phase 2.
+ * Runs against the mock and against Supabase (npm run test:live).
  */
 
 async function errorOf(promise: Promise<unknown>): Promise<AppError> {

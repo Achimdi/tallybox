@@ -24,8 +24,8 @@ import {
 } from './client'
 
 /**
- * Sign-in, registration, staff accounts and the developer portal on Supabase
- * (Phase 2A). The same contract tests as the demo prove they behave alike.
+ * Sign-in, registration, staff accounts and the developer portal on Supabase.
+ * The same contract tests as the demo prove they behave alike.
  */
 
 // ---------------------------------------------------------------------------

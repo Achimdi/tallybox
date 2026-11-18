@@ -8,8 +8,8 @@ import type { CartLine } from './orders'
  *     of one or more supplies,
  *   - both, or neither (not tracked, for example food made to order).
  *
- * Pure functions, used by the screens, the mock data layer and (in Phase 2)
- * the database, so every place agrees on what can be sold.
+ * Pure functions, used by the screens, the mock data layer and (in SQL) the
+ * database, so every place agrees on what can be sold.
  */
 
 export const SUPPLY_LIMITS = {

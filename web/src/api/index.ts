@@ -5,7 +5,7 @@ import type { TallyboxApi } from './types'
 export type * from './types'
 
 /**
- * The data source for this build, chosen by VITE_DATA_SOURCE (mock until Phase 2).
+ * The data source for this build, chosen by VITE_DATA_SOURCE (mock unless set).
  *
  * Read straight from import.meta.env, which Vite replaces with a fixed value at
  * build time, so each build carries only the implementation it uses: the demo

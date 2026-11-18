@@ -1,7 +1,7 @@
 -- pgTAP: shared supplies. Supplies with their own ledger, items that count
 -- their own stock, supplies, both or neither, a record of every change to how
 -- an item counts stock, restock and adjust for supplies, and who can read what.
--- Sales and voids that use supplies are tested with orders (Phase 2C).
+-- Sales and voids that use supplies are tested with orders (070_orders.sql).
 
 begin;
 

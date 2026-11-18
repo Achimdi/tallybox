@@ -11,8 +11,7 @@ import { RouteErrorPage } from './pages/RouteErrorPage'
  * Every screen in the app, in one place.
  *
  * Real pages are loaded with `lazy(() => import(...))`, so each screen's code
- * downloads only when someone opens it. Screens that a later phase delivers
- * are placeholders for now: the structure and access rules around them are real.
+ * downloads only when someone opens it.
  */
 
 // Public
