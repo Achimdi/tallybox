@@ -429,7 +429,7 @@ export default function GalleryPage() {
       </Section>
 
       <Section title="Empty, error and permission-denied states">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-card border border-line bg-surface-raised">
             <EmptyState
               title="No items yet"
@@ -459,7 +459,7 @@ export default function GalleryPage() {
       </Section>
 
       <Section title="Report charts">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-card border border-line bg-surface-raised p-4">
             <ColumnChart
               title="Sales by day"

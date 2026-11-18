@@ -172,7 +172,7 @@ export default function OwnerHomePage() {
             />
           </section>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <section className="flex flex-col gap-3">
               <SectionHeader title="Payment methods today" />
               <Card>
@@ -185,7 +185,7 @@ export default function OwnerHomePage() {
                       const share = Math.round((amount / dashboard.data.today.sales) * 100)
                       return (
                         <li key={method.value} className="flex flex-col gap-1">
-                          <div className="flex items-baseline justify-between gap-3">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                             <span className="text-body text-ink">{method.label}</span>
                             <span className="text-body text-ink">
                               <Money minor={amount} currency={currency} className="font-semibold" />

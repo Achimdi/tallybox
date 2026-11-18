@@ -29,7 +29,7 @@ export function PhonePreview({ className }: { className?: string }) {
       role="img"
       aria-label="Tallybox on a phone: the New order screen with items, prices, stock and a cart total."
       className={cn(
-        'relative mx-auto w-[16.5rem] rounded-[2.25rem] border-[6px] border-grey-900 bg-surface shadow-raised sm:w-[18rem]',
+        'relative mx-auto w-full max-w-[16.5rem] rounded-[2.25rem] border-[6px] border-grey-900 bg-surface shadow-raised sm:max-w-[18rem]',
         className,
       )}
     >
@@ -38,9 +38,9 @@ export function PhonePreview({ className }: { className?: string }) {
         className="flex flex-col gap-3 overflow-hidden rounded-[1.75rem] p-3 pt-5"
       >
         <div className="mx-auto mb-1 h-1.5 w-16 rounded-full bg-grey-900/80" />
-        <div className="flex items-center justify-between px-1">
+        <div className="flex flex-wrap items-center justify-between gap-1 px-1">
           <span className="text-label font-bold text-ink">New order</span>
-          <span className="rounded-full bg-primary-soft px-2 py-0.5 text-caption font-semibold text-primary">
+          <span className="truncate rounded-full bg-primary-soft px-2 py-0.5 text-caption font-semibold text-primary">
             Sunrise Pharmacy
           </span>
         </div>
@@ -51,7 +51,7 @@ export function PhonePreview({ className }: { className?: string }) {
           {ITEMS.map((item) => (
             <div
               key={item.name}
-              className="flex flex-col gap-0.5 rounded-control border border-line bg-surface-raised p-2.5 shadow-soft"
+              className="flex min-w-0 flex-col gap-0.5 rounded-control border border-line bg-surface-raised p-2.5 shadow-soft"
             >
               <span className="truncate text-caption font-semibold text-ink">{item.name}</span>
               <span className="text-label font-bold text-ink">{item.price}</span>
@@ -66,8 +66,8 @@ export function PhonePreview({ className }: { className?: string }) {
             </div>
           ))}
         </div>
-        <div className="mt-1 flex items-center justify-between rounded-control bg-primary px-3 py-2.5 text-on-primary">
-          <span className="text-caption font-semibold">View cart · 4 items</span>
+        <div className="mt-1 flex items-center justify-between gap-2 rounded-control bg-primary px-3 py-2.5 text-on-primary">
+          <span className="min-w-0 truncate text-caption font-semibold">View cart · 4 items</span>
           <span className="text-label font-bold">₦2,700</span>
         </div>
       </div>
@@ -127,11 +127,14 @@ export function SalesCard({ className }: { className?: string }) {
       role="img"
       aria-label="A sales summary: this week's sales by day, up 12% on last week."
       className={cn(
-        'flex flex-col gap-3 rounded-card border border-line bg-surface-raised p-4 shadow-raised',
+        'flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface-raised p-4 shadow-raised',
         className,
       )}
     >
-      <div aria-hidden="true" className="flex items-start justify-between gap-4">
+      <div
+        aria-hidden="true"
+        className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1"
+      >
         <div className="flex flex-col">
           <span className="text-caption text-ink-muted">Sales this week</span>
           <span className="text-title font-bold text-ink">₦234,150</span>
@@ -174,7 +177,7 @@ export function SuppliesPreview({ className }: { className?: string }) {
       role="img"
       aria-label={`Shared supplies: three items share one supply, each sale using its own amount. Together they take ${used} from a shared stock of 500, leaving ${500 - used}.`}
       className={cn(
-        'flex flex-col gap-3 rounded-card border border-line bg-surface-raised p-5 shadow-raised',
+        'flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface-raised p-4 shadow-raised sm:p-5',
         className,
       )}
     >
@@ -182,14 +185,15 @@ export function SuppliesPreview({ className }: { className?: string }) {
         {items.map((item) => (
           <div
             key={item.name}
-            className="flex flex-col items-center gap-1 rounded-control bg-surface-sunken p-3 text-center"
+            className="flex min-w-0 flex-col items-center gap-1 rounded-control bg-surface-sunken p-2 text-center sm:p-3"
           >
             <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-primary">
               <Package className="size-5" />
             </span>
             <span className="text-caption font-semibold text-ink">{item.name}</span>
-            <span className="text-[0.65rem] text-ink-muted">
-              {item.sold} sold · uses {item.uses}
+            <span className="flex flex-col text-[0.65rem] text-ink-muted">
+              <span>{item.sold} sold</span>
+              <span>uses {item.uses}</span>
             </span>
           </div>
         ))}
@@ -201,7 +205,7 @@ export function SuppliesPreview({ className }: { className?: string }) {
       </div>
       <div
         aria-hidden="true"
-        className="flex items-center justify-between rounded-control border border-dashed border-line-control p-3"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-dashed border-line-control p-3"
       >
         <span className="flex flex-col">
           <span className="text-caption text-ink-muted">Shared supply</span>

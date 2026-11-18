@@ -28,6 +28,7 @@ import { Logo } from '@/components/brand/Logo'
 import { ButtonLink } from '@/components/Button'
 import { buttonClasses } from '@/components/button-styles'
 import { ResetDemoData } from '@/features/demo/ResetDemoData'
+import { cn } from '@/lib/cn'
 import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM } from '@/lib/config'
 import { APP_VERSION } from '@/lib/version'
 import { ContactLink, ContactProvider } from './ContactSheet'
@@ -91,7 +92,7 @@ const STEPS: readonly { icon: LucideIcon; title: string; text: ReactNode }[] = [
     text: (
       <>
         Email{' '}
-        <ContactLink reason="code" className="font-semibold text-primary underline">
+        <ContactLink reason="code" className="font-semibold break-all text-primary underline">
           {SUPPORT_EMAIL}
         </ContactLink>
         . We send you a single-use code for your email address.
@@ -199,7 +200,7 @@ export default function LandingPage() {
               className="pointer-events-none absolute inset-0 bg-[radial-gradient(60rem_30rem_at_80%_-10%,var(--color-primary-soft),transparent_70%),radial-gradient(40rem_24rem_at_-10%_110%,var(--color-warning-soft),transparent_70%)]"
             />
             <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-16 sm:px-6 md:pt-20 md:pb-24 lg:grid-cols-[1.05fr_1fr]">
-              <div className="flex flex-col items-start gap-6">
+              <div className="flex min-w-0 flex-col items-start gap-6">
                 <p className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1 text-label text-ink-muted shadow-soft">
                   <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
                   For shops, pharmacies and restaurants
@@ -245,7 +246,7 @@ export default function LandingPage() {
                 </ul>
               </div>
 
-              <div className="relative mx-auto w-full max-w-md py-6">
+              <div className="relative mx-auto w-full max-w-md min-w-0 py-6">
                 <PhonePreview />
                 <ConfirmedCard className="absolute top-2 -left-2 hidden animate-page-in sm:flex lg:-left-10" />
                 <LowStockCard className="absolute -right-2 -bottom-2 hidden animate-page-in sm:flex lg:-right-10" />
@@ -344,7 +345,7 @@ export default function LandingPage() {
               {STEPS.map((step, index) => (
                 <li
                   key={step.title}
-                  className="relative flex flex-col gap-3 rounded-card border border-line bg-surface-raised p-6 shadow-soft"
+                  className="relative flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface-raised p-5 shadow-soft sm:p-6"
                 >
                   <span className="flex items-center gap-3">
                     <span className="flex size-10 items-center justify-center rounded-full bg-primary text-label font-bold text-on-primary tabular-nums">
@@ -577,7 +578,7 @@ function Spotlight({
 }) {
   return (
     <article className="grid items-center gap-10 md:grid-cols-2">
-      <div className={reverse ? 'md:order-2' : undefined}>
+      <div className={cn('min-w-0', reverse && 'md:order-2')}>
         <div className="flex flex-col gap-4">
           <p className="text-label font-semibold tracking-wide text-primary uppercase">{eyebrow}</p>
           <h3 className="text-[1.6rem] leading-tight font-bold tracking-tight text-ink sm:text-[2rem]">
@@ -594,7 +595,7 @@ function Spotlight({
           </ul>
         </div>
       </div>
-      <div className="flex justify-center rounded-[1.5rem] bg-surface-sunken p-6 sm:p-10">
+      <div className="flex min-w-0 justify-center rounded-[1.5rem] bg-surface-sunken p-4 sm:p-10">
         {visual}
       </div>
     </article>

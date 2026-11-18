@@ -126,19 +126,18 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
 
   return (
     <div className="flex flex-col gap-6">
-      <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section aria-label="Totals" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Sales"
           icon={Banknote}
           value={<Money minor={report.sales} currency={currency} />}
-          className="col-span-2 lg:col-span-1"
         />
-        <StatCard label="Orders" icon={ReceiptText} value={report.orders} />
         <StatCard
           label="Average order"
           icon={Calculator}
           value={<Money minor={report.averageOrder} currency={currency} />}
         />
+        <StatCard label="Orders" icon={ReceiptText} value={report.orders} />
         <StatCard
           label="Voided"
           icon={Ban}
@@ -147,7 +146,6 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
             direction: 'flat',
             label: report.voided > 0 ? `${money(report.voidedTotal)} voided` : 'None',
           }}
-          className="col-span-2 lg:col-span-1"
         />
       </section>
 
@@ -161,7 +159,7 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
       ) : (
         <>
           {report.byDay.length > 1 ? <SalesOverTime report={report} currency={currency} /> : null}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card title="By payment method">
               <BarList
                 label="Sales by payment method"
@@ -259,23 +257,23 @@ function ReportBody({ report, currency }: { report: SalesReport; currency: strin
       <Card title="Stock value now">
         {report.stockValue ? (
           <div className="flex flex-col gap-3">
-            <dl className="grid grid-cols-2 gap-4">
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-label font-normal text-ink-muted">At cost price</dt>
-                <dd className="text-title text-ink">
+                <dd className="text-title break-words text-ink">
                   <Money minor={report.stockValue.atCost} currency={currency} />
                 </dd>
               </div>
               <div>
                 <dt className="text-label font-normal text-ink-muted">At selling price</dt>
-                <dd className="text-title text-ink">
+                <dd className="text-title break-words text-ink">
                   <Money minor={report.stockValue.atPrice} currency={currency} />
                 </dd>
               </div>
               {report.supplies.length > 0 ? (
                 <div>
                   <dt className="text-label font-normal text-ink-muted">Shared supplies at cost</dt>
-                  <dd className="text-title text-ink">
+                  <dd className="text-title break-words text-ink">
                     <Money minor={report.stockValue.suppliesAtCost} currency={currency} />
                   </dd>
                 </div>

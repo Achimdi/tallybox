@@ -27,7 +27,10 @@ export default function PrivacyPage() {
         <DocumentSection id="who" title="Who we are">
           <p>
             Tallybox. Write to us at{' '}
-            <ContactLink reason="contact" className="font-semibold text-primary underline">
+            <ContactLink
+              reason="contact"
+              className="font-semibold break-all text-primary underline"
+            >
               {SUPPORT_EMAIL}
             </ContactLink>{' '}
             or message{' '}
@@ -155,7 +158,10 @@ export default function PrivacyPage() {
           <p>
             Owners can correct most things themselves in Settings, and download their orders as a
             spreadsheet file from Reports. For anything else, write to{' '}
-            <ContactLink reason="contact" className="font-semibold text-primary underline">
+            <ContactLink
+              reason="contact"
+              className="font-semibold break-all text-primary underline"
+            >
               {SUPPORT_EMAIL}
             </ContactLink>
             . If you are not happy with our answer, you can complain to the Nigeria Data Protection

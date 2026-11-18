@@ -188,7 +188,7 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
         <h2 id="logo-title" className="text-label text-ink">
           Logo
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-card border border-line bg-surface-sunken">
             {shownLogo ? (
               <img src={shownLogo} alt="Business logo" className="size-full object-contain" />

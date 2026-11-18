@@ -56,7 +56,7 @@ export function ItemCard({
         ) : null}
       </span>
       <Money minor={price} currency={currency} className="text-body-lg font-bold text-ink" />
-      <span className="mt-auto flex min-h-6 items-center justify-between gap-2">
+      <span className="mt-auto flex min-h-6 flex-wrap items-center justify-between gap-x-2 gap-y-1">
         {status === null ? (
           <span className="text-label font-normal text-ink-muted">No stock count</span>
         ) : status === 'in_stock' ? (

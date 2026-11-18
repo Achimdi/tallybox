@@ -66,7 +66,10 @@ export default function NewOrderPage() {
   let grid
   if (items.isPending || supplies.isPending) {
     grid = (
-      <div role="status" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div
+        role="status"
+        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-3 md:grid-cols-2 lg:grid-cols-3"
+      >
         <span className="sr-only">Loading items</span>
         {Array.from({ length: 6 }, (_, index) => (
           <Skeleton key={index} className="h-32 rounded-card" />
@@ -121,7 +124,10 @@ export default function NewOrderPage() {
     )
   } else {
     grid = (
-      <ul aria-label="Items" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <ul
+        aria-label="Items"
+        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-3 md:grid-cols-2 lg:grid-cols-3"
+      >
         {shown.map((item) => (
           <li key={item.id} className="flex">
             <ItemCard

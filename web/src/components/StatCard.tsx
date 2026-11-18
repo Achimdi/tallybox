@@ -38,7 +38,7 @@ export function StatCard({ label, value, icon: Icon, trend, className }: StatCar
         <span className="text-label">{label}</span>
         {Icon ? <Icon aria-hidden="true" className="size-5" /> : null}
       </div>
-      <div className="text-title-lg text-ink tabular-nums">{value}</div>
+      <div className="text-title-lg break-words text-ink tabular-nums">{value}</div>
       {trend && trendStyle && TrendIcon ? (
         <div className={cn('flex items-center gap-1 text-label', trendStyle.className)}>
           <TrendIcon aria-hidden="true" className="size-4" />

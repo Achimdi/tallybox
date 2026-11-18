@@ -20,7 +20,7 @@ function NavEntry({ item }: { item: NavItem }) {
       to={item.to}
       className={({ isActive }) =>
         cn(
-          'group flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-1 text-caption font-medium',
+          'group flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-caption font-medium',
           'transition-colors duration-150 md:min-h-16 md:flex-none',
           // The current page is shown by weight and a filled pill, not color alone.
           isActive ? 'font-bold text-primary' : 'text-ink-muted hover:text-ink',
@@ -31,7 +31,7 @@ function NavEntry({ item }: { item: NavItem }) {
         <>
           <span
             className={cn(
-              'flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-150',
+              'flex h-8 w-full max-w-14 items-center justify-center rounded-full transition-colors duration-150',
               isActive ? 'bg-teal-100' : 'group-hover:bg-surface-sunken',
             )}
           >
