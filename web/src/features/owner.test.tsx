@@ -259,6 +259,48 @@ describe('business settings', () => {
     )
   })
 
+  it('uses the Tallybox watermark by default, and saves the owner’s own or none', async () => {
+    const test = await signedInTestApi('owner')
+    renderApp({ path: '/owner/settings', api: test.api })
+
+    const choices = await screen.findByRole('group', { name: 'Receipt watermark' })
+    expect(within(choices).getByRole('radio', { name: /^Tallybox/ })).toBeChecked()
+    // The preview shows the Tallybox mark behind a made-up receipt.
+    const preview = screen.getByRole('figure', { name: 'Preview' })
+    expect(within(preview).getByTestId('receipt-watermark')).toHaveTextContent('Tallybox')
+    expect(screen.queryByLabelText(/^Watermark words/)).not.toBeInTheDocument()
+
+    // Their own, with nothing in it, can't be saved.
+    await userEvent.click(within(choices).getByRole('radio', { name: /^Your own/ }))
+    const words = screen.getByLabelText(/^Watermark words/)
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(await screen.findByText('Add some words, or use your logo.')).toBeInTheDocument()
+
+    await userEvent.type(words, 'Sunrise Corner')
+    expect(within(preview).getByTestId('receipt-watermark')).toHaveTextContent('Sunrise Corner')
+    // No logo yet, so it can't be used.
+    expect(screen.getByRole('checkbox', { name: /Use my logo/ })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(async () =>
+      expect((await test.api.business.get()).watermark).toEqual({
+        kind: 'custom',
+        text: 'Sunrise Corner',
+        useLogo: false,
+      }),
+    )
+
+    await userEvent.click(within(choices).getByRole('radio', { name: /^None/ }))
+    expect(within(preview).queryByTestId('receipt-watermark')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(async () =>
+      expect((await test.api.business.get()).watermark).toEqual({
+        kind: 'none',
+        text: 'Sunrise Corner',
+        useLogo: false,
+      }),
+    )
+  })
+
   it('reaches every owner tool from More', async () => {
     const test = await signedInTestApi('owner')
     renderApp({ path: '/owner/more', api: test.api })

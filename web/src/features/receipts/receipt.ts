@@ -1,5 +1,6 @@
 import type { BusinessSettings, Order } from '@/api/types'
 import { formatOrderNumber, paymentMethodLabel } from '@/domain/orders'
+import { receiptWatermark, type ReceiptWatermark } from '@/domain/receiptWatermark'
 import { formatDateTime } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 
@@ -27,6 +28,8 @@ export interface ReceiptData {
   customerPhone: string | null
   /** A voided order's receipt carries a large VOID mark. */
   voided: boolean
+  /** The faint mark behind the receipt, or null for none. */
+  watermark: ReceiptWatermark | null
 }
 
 export function buildReceipt(order: Order, settings: BusinessSettings): ReceiptData {
@@ -53,6 +56,7 @@ export function buildReceipt(order: Order, settings: BusinessSettings): ReceiptD
     customerName: order.customerName,
     customerPhone: order.customerPhone,
     voided: order.status === 'voided',
+    watermark: receiptWatermark(settings.watermark, settings.logoUrl),
   }
 }
 

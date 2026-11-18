@@ -19,6 +19,7 @@
 import type { AccessFilter, BusinessStatus } from '@/domain/access'
 import type { CodeStatus } from '@/domain/activationCodes'
 import type { CartLine, PaymentMethod } from '@/domain/orders'
+import type { WatermarkKind, WatermarkSettings } from '@/domain/receiptWatermark'
 import type { DaySummary, ItemSales } from '@/domain/reports'
 import type { ReportRange, SalesReport } from '@/domain/salesReport'
 import type { AdjustReason, MovementType, RestockLine } from '@/domain/stock'
@@ -372,6 +373,8 @@ export interface BusinessSettings {
   defaultLowStockLevel: number
   /** A small image (data URL) in demo mode; a stored file in Phase 2. */
   logoUrl: string | null
+  /** The faint mark behind receipts: Tallybox by default, the owner's own, or none. */
+  watermark: WatermarkSettings
   accessEndsAt: string | null
 }
 
@@ -385,6 +388,8 @@ export interface BusinessSettingsInput {
   defaultLowStockLevel: number
   /** Leave out to keep the current logo; null removes it; a data URL sets a new one. */
   logo?: string | null
+  /** Text is the owner's own watermark words ('' for none); see domain/receiptWatermark. */
+  watermark: { kind: WatermarkKind; text: string; useLogo: boolean }
 }
 
 export interface BusinessApi {

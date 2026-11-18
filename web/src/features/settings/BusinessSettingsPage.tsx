@@ -1,23 +1,32 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImageUp, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import type { BusinessSettings } from '@/api/types'
 import { Banner, ErrorBanner } from '@/components/Banner'
 import { BackLink } from '@/components/BackLink'
 import { Button } from '@/components/Button'
+import { CheckboxField } from '@/components/CheckboxField'
+import { RadioCards } from '@/components/RadioCards'
 import { SelectField } from '@/components/SelectField'
 import { Skeleton } from '@/components/Skeleton'
 import { ErrorState } from '@/components/states'
 import { TextField } from '@/components/TextField'
 import { useToast } from '@/components/toast-context'
+import {
+  receiptWatermark,
+  WATERMARK_KINDS,
+  WATERMARK_TEXT_MAX,
+  type WatermarkKind,
+} from '@/domain/receiptWatermark'
 import { LIMITS } from '@/domain/rules'
 import { STOCK_LIMITS } from '@/domain/stock'
 import { useBusinessSettings, useUpdateBusinessSettings } from '@/features/business/api'
 import { toAppError, type AppError } from '@/lib/errors'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { LOGO_PROBLEM_TEXT, shrinkLogo } from './logo'
+import { WatermarkPreview } from './WatermarkPreview'
 
 /** Currencies most likely to be used. The business's own currency is always offered too. */
 const COMMON_CURRENCIES = [
@@ -49,6 +58,16 @@ function currencyOptions(current: string) {
     : [{ value: current, label: current }, ...options]
 }
 
+const WATERMARK_OPTIONS: readonly { value: WatermarkKind; label: string; description: string }[] = [
+  {
+    value: 'tallybox',
+    label: 'Tallybox',
+    description: 'The Tallybox mark and name, faint behind the receipt.',
+  },
+  { value: 'custom', label: 'Your own', description: 'Your own words, your logo, or both.' },
+  { value: 'none', label: 'None', description: 'No watermark.' },
+]
+
 function timezoneOptions(current: string) {
   const zones = Intl.supportedValuesOf('timeZone')
   const all = zones.includes(current) ? zones : [current, ...zones]
@@ -66,6 +85,12 @@ const schema = z.object({
   address: z.string().trim().max(200, 'Use at most 200 characters.'),
   phone: z.string().trim().max(LIMITS.phoneMax, `Use at most ${LIMITS.phoneMax} characters.`),
   receiptFooter: z.string().trim().max(200, 'Use at most 200 characters.'),
+  watermarkKind: z.enum(WATERMARK_KINDS),
+  watermarkText: z
+    .string()
+    .trim()
+    .max(WATERMARK_TEXT_MAX, `Use at most ${WATERMARK_TEXT_MAX} characters.`),
+  watermarkLogo: z.boolean(),
   defaultLowStockLevel: z
     .string()
     .trim()
@@ -91,6 +116,7 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
     register,
     handleSubmit,
     control,
+    setError: setFieldError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -101,11 +127,28 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
       address: settings.address ?? '',
       phone: settings.phone ?? '',
       receiptFooter: settings.receiptFooter ?? '',
+      watermarkKind: settings.watermark.kind,
+      watermarkText: settings.watermark.text ?? '',
+      watermarkLogo: settings.watermark.useLogo,
       defaultLowStockLevel: String(settings.defaultLowStockLevel),
     },
   })
   const currencyChanged = useWatch({ control, name: 'currencyCode' }) !== settings.currencyCode
   const shownLogo = logo === undefined ? settings.logoUrl : logo
+  const [previewName, previewCurrency, previewFooter, watermarkKind, watermarkText, watermarkLogo] =
+    useWatch({
+      control,
+      name: [
+        'name',
+        'currencyCode',
+        'receiptFooter',
+        'watermarkKind',
+        'watermarkText',
+        'watermarkLogo',
+      ],
+    })
+  // The logo only counts while there is one.
+  const usesLogo = watermarkLogo && Boolean(shownLogo)
 
   const chooseLogo = async (file: File | undefined) => {
     if (!file) return
@@ -117,11 +160,18 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
 
   const onSubmit = handleSubmit(async (values) => {
     setError(null)
+    const { watermarkKind: kind, watermarkText: text, watermarkLogo: useLogo, ...details } = values
+    const withLogo = useLogo && Boolean(shownLogo)
+    if (kind === 'custom' && !text && !withLogo) {
+      setFieldError('watermarkText', { message: 'Add some words, or use your logo.' })
+      return
+    }
     try {
       await update.mutateAsync({
-        ...values,
+        ...details,
         defaultLowStockLevel: Number(values.defaultLowStockLevel),
         ...(logo === undefined ? {} : { logo }),
+        watermark: { kind, text, useLogo: withLogo },
       })
       setLogo(undefined)
       toast({ title: 'Settings saved', tone: 'success' })
@@ -241,6 +291,63 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
         hint="Printed at the bottom of every receipt."
         error={errors.receiptFooter?.message}
         {...register('receiptFooter')}
+      />
+      <Controller
+        control={control}
+        name="watermarkKind"
+        render={({ field }) => (
+          <RadioCards
+            legend="Receipt watermark"
+            description="A faint mark behind every receipt. Your logo, if you add one, also stays at the top."
+            value={field.value}
+            options={WATERMARK_OPTIONS}
+            onChange={field.onChange}
+          />
+        )}
+      />
+      {watermarkKind === 'custom' ? (
+        <div className="flex flex-col gap-3">
+          <TextField
+            label="Watermark words"
+            autoComplete="off"
+            optional
+            placeholder={settings.name}
+            hint={`Up to ${WATERMARK_TEXT_MAX} characters, like your business name.`}
+            error={errors.watermarkText?.message}
+            {...register('watermarkText')}
+          />
+          <Controller
+            control={control}
+            name="watermarkLogo"
+            render={({ field }) => (
+              <CheckboxField
+                label="Use my logo"
+                description={
+                  shownLogo
+                    ? 'Your logo, in grey, above the words.'
+                    : 'Add a logo at the top of this page first.'
+                }
+                checked={usesLogo}
+                disabled={!shownLogo}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+      ) : null}
+      <WatermarkPreview
+        businessName={previewName}
+        currencyCode={previewCurrency}
+        logoUrl={shownLogo}
+        footer={previewFooter}
+        watermark={receiptWatermark(
+          {
+            kind: watermarkKind,
+            text: watermarkText.replace(/\s+/g, ' ').trim() || null,
+            useLogo: usesLogo,
+          },
+          shownLogo,
+        )}
       />
       <TextField
         label="Default low-stock level"

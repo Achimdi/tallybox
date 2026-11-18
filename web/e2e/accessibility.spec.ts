@@ -13,6 +13,9 @@ async function expectAccessible(page: Page) {
   )
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    // A receipt watermark is faint on purpose: pure decoration, hidden from
+    // screen readers, which WCAG 1.4.3 exempts from contrast.
+    .exclude('[data-testid="receipt-watermark"]')
     .analyze()
   expect(
     results.violations.map(

@@ -459,6 +459,7 @@ export function describeOwnerContract(
           phone: '0800 000 0000',
           receiptFooter: 'Thanks!',
           defaultLowStockLevel: 7,
+          watermark: { kind: 'tallybox', text: '', useLogo: false },
         })
         expect(updated).toMatchObject({
           name: 'Sunrise Chemists',
@@ -482,6 +483,7 @@ export function describeOwnerContract(
           phone: '',
           receiptFooter: '',
           defaultLowStockLevel: 7,
+          watermark: { kind: 'tallybox' as const, text: '', useLogo: false },
         }
         expect(await codeOf(owner.business.update({ ...settings, currencyCode: 'XYZW' }))).toBe(
           'validation',
@@ -503,6 +505,51 @@ export function describeOwnerContract(
         expect((await staff.business.get()).logoUrl).toBe(withLogo)
         expect((await owner.business.update(settings)).logoUrl).toBe(withLogo)
         expect((await owner.business.update({ ...settings, logo: null })).logoUrl).toBeNull()
+      },
+    )
+
+    it.skipIf(!has('settings'))(
+      'keeps the receipt watermark the owner chose, for everyone in the business',
+      async () => {
+        const current = await owner.business.get()
+        const settings = {
+          name: current.name,
+          currencyCode: current.currencyCode,
+          timezone: current.timezone,
+          address: current.address ?? '',
+          phone: current.phone ?? '',
+          receiptFooter: current.receiptFooter ?? '',
+          defaultLowStockLevel: current.defaultLowStockLevel,
+        }
+
+        const own = await owner.business.update({
+          ...settings,
+          watermark: { kind: 'custom', text: '  Sunrise   Corner ', useLogo: true },
+        })
+        expect(own.watermark).toEqual({ kind: 'custom', text: 'Sunrise Corner', useLogo: true })
+        expect((await staff.business.get()).watermark).toEqual(own.watermark)
+
+        // Off, with the owner's words kept for later.
+        const off = await owner.business.update({
+          ...settings,
+          watermark: { kind: 'none', text: 'Sunrise Corner', useLogo: false },
+        })
+        expect(off.watermark).toEqual({ kind: 'none', text: 'Sunrise Corner', useLogo: false })
+
+        for (const watermark of [
+          { kind: 'custom' as const, text: '   ', useLogo: false },
+          { kind: 'custom' as const, text: 'x'.repeat(41), useLogo: false },
+          { kind: 'sparkles' as 'none', text: '', useLogo: false },
+        ]) {
+          expect(await codeOf(owner.business.update({ ...settings, watermark }))).toBe('validation')
+        }
+        expect((await owner.business.get()).watermark).toEqual(off.watermark)
+
+        const back = await owner.business.update({
+          ...settings,
+          watermark: { kind: 'tallybox', text: '', useLogo: false },
+        })
+        expect(back.watermark).toEqual({ kind: 'tallybox', text: null, useLogo: false })
       },
     )
 

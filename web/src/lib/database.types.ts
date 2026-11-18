@@ -76,6 +76,9 @@ export type Database = {
           phone: string | null
           plan: string
           receipt_footer: string | null
+          receipt_watermark: string
+          receipt_watermark_logo: boolean
+          receipt_watermark_text: string | null
           status: string
           subscription_ends_at: string | null
           subscription_status: string
@@ -98,6 +101,9 @@ export type Database = {
           phone?: string | null
           plan?: string
           receipt_footer?: string | null
+          receipt_watermark?: string
+          receipt_watermark_logo?: boolean
+          receipt_watermark_text?: string | null
           status?: string
           subscription_ends_at?: string | null
           subscription_status?: string
@@ -120,6 +126,9 @@ export type Database = {
           phone?: string | null
           plan?: string
           receipt_footer?: string | null
+          receipt_watermark?: string
+          receipt_watermark_logo?: boolean
+          receipt_watermark_text?: string | null
           status?: string
           subscription_ends_at?: string | null
           subscription_status?: string
@@ -1017,6 +1026,9 @@ export type Database = {
           p_phone: string
           p_receipt_footer: string
           p_timezone: string
+          p_watermark?: string
+          p_watermark_logo?: boolean
+          p_watermark_text?: string
         }
         Returns: undefined
       }

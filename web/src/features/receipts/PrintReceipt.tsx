@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { MARK_BOUNDS, MARK_PATHS } from '@/components/brand/markPaths'
+import type { ReceiptWatermark } from '@/domain/receiptWatermark'
+import { WATERMARK_OPACITY } from './drawReceipt'
 import type { ReceiptData } from './receipt'
 
 export type Paper = '58mm' | '80mm' | 'a4'
@@ -28,15 +31,58 @@ function printRoot(): HTMLElement {
   return root
 }
 
+/** The faint mark behind the printed receipt, matching the receipt picture. */
+function WatermarkLayer({ watermark, small }: { watermark: ReceiptWatermark; small: boolean }) {
+  const picture = small ? '20mm' : '28mm'
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="receipt-watermark"
+      className="pointer-events-none absolute inset-0 -z-10 flex flex-col items-center justify-center gap-[2mm] text-center"
+      style={{ opacity: WATERMARK_OPACITY }}
+    >
+      {watermark.kind === 'tallybox' ? (
+        <svg
+          viewBox={`${MARK_BOUNDS.x} ${MARK_BOUNDS.y} ${MARK_BOUNDS.width} ${MARK_BOUNDS.height}`}
+          fill="none"
+          stroke="#000"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ width: picture }}
+        >
+          {Object.values(MARK_PATHS).map((path) => (
+            <path key={path.d} d={path.d} strokeWidth={path.width} />
+          ))}
+        </svg>
+      ) : watermark.logoUrl ? (
+        <img
+          src={watermark.logoUrl}
+          alt=""
+          style={{ maxWidth: picture, maxHeight: picture, filter: 'grayscale(1)' }}
+        />
+      ) : null}
+      {watermark.text ? (
+        <div
+          className="max-w-[90%] font-bold"
+          style={{ fontSize: small ? '15pt' : '20pt', lineHeight: 1.15, overflowWrap: 'anywhere' }}
+        >
+          {watermark.text}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /** The receipt as plain HTML, for the browser's print dialog. */
 export function ReceiptDocument({ receipt, paper }: { receipt: ReceiptData; paper: Paper }) {
   const small = paper === '58mm'
   return (
     <article
       aria-label={`Receipt ${receipt.orderNumber}`}
-      className="relative mx-auto bg-white font-sans text-black"
+      className="relative isolate mx-auto bg-white font-sans text-black"
       style={{ width: WIDTH[paper], fontSize: small ? '9pt' : '10pt', lineHeight: 1.35 }}
     >
+      {receipt.watermark ? <WatermarkLayer watermark={receipt.watermark} small={small} /> : null}
       {receipt.voided ? (
         <div
           aria-hidden="true"

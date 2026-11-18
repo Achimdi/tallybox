@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { checkOrder, normalizeCart, type CartLine } from '@/domain/orders'
+import { cleanWatermark, WATERMARK_KINDS } from '@/domain/receiptWatermark'
 import { isLogoDataUrl } from '@/domain/rules'
 import { dateKey, isDateKey } from '@/lib/dates'
 import { AppError } from '@/lib/errors'
@@ -89,7 +90,7 @@ const heldRow = z.object({
 })
 
 const BUSINESS_COLUMNS =
-  'id, name, business_code, currency_code, timezone, address, phone, receipt_footer, default_low_stock_level, logo_path, subscription_ends_at'
+  'id, name, business_code, currency_code, timezone, address, phone, receipt_footer, default_low_stock_level, logo_path, subscription_ends_at, receipt_watermark, receipt_watermark_text, receipt_watermark_logo'
 
 const businessRow = z.object({
   id: z.string(),
@@ -103,6 +104,9 @@ const businessRow = z.object({
   default_low_stock_level: z.number(),
   logo_path: z.string().nullable(),
   subscription_ends_at: z.string().nullable(),
+  receipt_watermark: z.enum(WATERMARK_KINDS),
+  receipt_watermark_text: z.string().nullable(),
+  receipt_watermark_logo: z.boolean(),
 })
 
 export function toOrder(row: z.infer<typeof orderRow>): Order {
@@ -407,6 +411,11 @@ export function createOrdersApi(
       receiptFooter: row.receipt_footer,
       defaultLowStockLevel: row.default_low_stock_level,
       logoUrl: logoUrl(row.logo_path),
+      watermark: {
+        kind: row.receipt_watermark,
+        text: row.receipt_watermark_text,
+        useLogo: row.receipt_watermark_logo,
+      },
       accessEndsAt: row.subscription_ends_at ? isoTime(row.subscription_ends_at) : null,
     }
   }
@@ -420,7 +429,8 @@ export function createOrdersApi(
     async update(input) {
       await requireRole(['owner'])
       // Checked first, so a bad picture never leaves the other settings half saved.
-      if (typeof input.logo === 'string' && !isLogoDataUrl(input.logo)) {
+      const watermark = cleanWatermark(input.watermark)
+      if ((typeof input.logo === 'string' && !isLogoDataUrl(input.logo)) || !watermark) {
         throw new AppError('validation')
       }
       await rpc(
@@ -433,6 +443,9 @@ export function createOrdersApi(
           p_phone: input.phone,
           p_receipt_footer: input.receiptFooter,
           p_default_low_stock_level: input.defaultLowStockLevel,
+          p_watermark: watermark.kind,
+          p_watermark_text: watermark.text ?? '',
+          p_watermark_logo: watermark.useLogo,
         },
         z.unknown(),
       )

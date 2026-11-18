@@ -34,6 +34,7 @@ import {
   type CartLine,
   type StockFacts,
 } from '@/domain/orders'
+import { cleanWatermark, DEFAULT_WATERMARK } from '@/domain/receiptWatermark'
 import { itemSales, lowStockItems, lowSupplies, summarizeDay } from '@/domain/reports'
 import { buildSalesReport, inRange, isValidRange, type SupplySaleFact } from '@/domain/salesReport'
 import { availableToSell, SUPPLY_LIMITS, validSupplyUses, type SupplyUse } from '@/domain/supplies'
@@ -599,6 +600,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
       receiptFooter: business.receiptFooter,
       defaultLowStockLevel: business.defaultLowStockLevel,
       logoUrl: business.logoUrl,
+      watermark: business.watermark ?? DEFAULT_WATERMARK,
       accessEndsAt: business.accessEndsAt,
     }
   }
@@ -1341,6 +1343,8 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
         ) {
           fail('validation')
         }
+        const watermark = cleanWatermark(input.watermark)
+        if (!watermark) fail('validation')
         Object.assign(business, {
           name,
           currencyCode: currency,
@@ -1350,6 +1354,7 @@ export function createMockApi(options: MockApiOptions = {}): TallyboxApi {
           receiptFooter: optional(input.receiptFooter, 200),
           defaultLowStockLevel: input.defaultLowStockLevel,
           ...(input.logo === undefined ? {} : { logoUrl: input.logo }),
+          watermark,
         })
         store.write(db)
         return toSettings(business)

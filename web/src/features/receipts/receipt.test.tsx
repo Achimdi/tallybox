@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { BusinessSettings, Order } from '@/api/types'
+import { DEFAULT_WATERMARK } from '@/domain/receiptWatermark'
 import { signedInTestApi } from '@/test/mockApi'
 import { renderApp } from '@/test/render'
 import {
@@ -23,6 +24,7 @@ const settings: BusinessSettings = {
   receiptFooter: 'Get well soon',
   defaultLowStockLevel: 5,
   logoUrl: null,
+  watermark: DEFAULT_WATERMARK,
   accessEndsAt: null,
 }
 
@@ -65,6 +67,7 @@ describe('receipt content', () => {
       customerName: 'Chioma',
       footer: 'Get well soon',
       voided: false,
+      watermark: { kind: 'tallybox', text: 'Tallybox' },
     })
     expect(receipt.dateTime).toMatch(/Nov.*2026.*6:52/)
     expect(receipt.lines[0]).toEqual({
@@ -73,6 +76,24 @@ describe('receipt content', () => {
       unitPrice: '₦450.00',
       lineTotal: '₦900.00',
     })
+  })
+
+  it("carries the owner's own watermark, or none", () => {
+    const logoUrl = 'data:image/png;base64,AAAA'
+    const own = {
+      ...settings,
+      logoUrl,
+      watermark: { kind: 'custom' as const, text: 'Sunrise', useLogo: true },
+    }
+    expect(buildReceipt(order, own).watermark).toEqual({
+      kind: 'custom',
+      text: 'Sunrise',
+      logoUrl,
+    })
+    // The logo stays at the top too.
+    expect(buildReceipt(order, own).logoUrl).toBe(logoUrl)
+    const none = { ...settings, watermark: { kind: 'none' as const, text: null, useLogo: false } }
+    expect(buildReceipt(order, none).watermark).toBeNull()
   })
 
   it('marks a voided order and names its files', () => {

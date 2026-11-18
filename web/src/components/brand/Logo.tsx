@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { MARK_PATHS } from './markPaths'
 
 interface LogoSymbolProps {
   className?: string
@@ -16,13 +17,13 @@ export function LogoSymbol({ className }: LogoSymbolProps) {
       className={cn('size-10 rounded-[22%]', className)}
     >
       <rect width="512" height="512" className="fill-teal-600" />
+      <path d={MARK_PATHS.box.d} stroke="#fff" strokeWidth={MARK_PATHS.box.width} />
+      <path d={MARK_PATHS.tallies.d} stroke="#fff" strokeWidth={MARK_PATHS.tallies.width} />
       <path
-        d="M132 212v156a24 24 0 0 0 24 24h200a24 24 0 0 0 24-24V212"
-        stroke="#fff"
-        strokeWidth="28"
+        d={MARK_PATHS.strike.d}
+        className="stroke-amber-400"
+        strokeWidth={MARK_PATHS.strike.width}
       />
-      <path d="M196 164v160M236 164v160M276 164v160M316 164v160" stroke="#fff" strokeWidth="22" />
-      <path d="M160 300 352 188" className="stroke-amber-400" strokeWidth="24" />
     </svg>
   )
 }

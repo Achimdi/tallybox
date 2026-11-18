@@ -15,6 +15,7 @@ import { ItemCard } from '@/components/ItemCard'
 import { ListGroup, ListItem } from '@/components/ListItem'
 import { Money } from '@/components/Money'
 import { QuantityStepper } from '@/components/QuantityStepper'
+import { RadioCards } from '@/components/RadioCards'
 import { SearchBar } from '@/components/SearchBar'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Skeleton, SkeletonList } from '@/components/Skeleton'
@@ -85,6 +86,7 @@ export default function GalleryPage() {
   const [confirming, setConfirming] = useState(false)
   const [loadingDemo, setLoadingDemo] = useState(false)
   const [checkKey, setCheckKey] = useState(0)
+  const [choice, setChoice] = useState<'tallybox' | 'custom' | 'none'>('tallybox')
 
   const {
     register,
@@ -224,6 +226,21 @@ export default function GalleryPage() {
             <Button type="submit">Check form</Button>
           </div>
         </form>
+      </Section>
+
+      <Section title="Choice cards">
+        <RadioCards
+          className="max-w-md"
+          legend="Receipt watermark"
+          description="Pick one. The whole card is tappable, and arrow keys move between them."
+          value={choice}
+          options={[
+            { value: 'tallybox', label: 'Tallybox', description: 'The default.' },
+            { value: 'custom', label: 'Your own', description: 'Words, a logo, or both.' },
+            { value: 'none', label: 'None' },
+          ]}
+          onChange={setChoice}
+        />
       </Section>
 
       <Section title="Search bar">

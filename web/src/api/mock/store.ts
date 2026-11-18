@@ -3,6 +3,7 @@ import type { StoredCodeStatus } from '@/domain/activationCodes'
 import type { PaymentMethod } from '@/domain/orders'
 import type { MovementType } from '@/domain/stock'
 import type { RateCounters } from '@/domain/rateLimit'
+import type { WatermarkSettings } from '@/domain/receiptWatermark'
 
 /**
  * The mock's "database": one JSON document kept in this browser.
@@ -39,6 +40,8 @@ export interface MockBusiness {
   defaultLowStockLevel: number
   /** A small image as a data URL (demo only). */
   logoUrl: string | null
+  /** Missing in demo data saved before watermarks existed: the Tallybox default. */
+  watermark?: WatermarkSettings
 }
 
 export interface MockUser {

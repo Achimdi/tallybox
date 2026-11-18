@@ -9,6 +9,8 @@ import {
   VOID_RED,
   wrapText,
 } from '@/lib/canvasText'
+import { MARK_BOUNDS, MARK_PATHS } from '@/components/brand/markPaths'
+import type { ReceiptWatermark } from '@/domain/receiptWatermark'
 import type { ReceiptData } from './receipt'
 
 /** Width of the receipt in CSS pixels; drawn 3× for a sharp image (1152 px wide). */
@@ -17,13 +19,93 @@ const SCALE = 3
 const PAD = 24
 const INNER = WIDTH - PAD * 2
 
+/** How strong the watermark is: faint enough to read everything printed over it. */
+export const WATERMARK_OPACITY = 0.08
+const WATERMARK_PICTURE = 132
+const WATERMARK_TEXT_SIZE = 30
+
+/**
+ * The faint mark in the middle of the receipt, drawn before everything else so
+ * the receipt's words sit on top of it: the Tallybox mark or the owner's logo
+ * (in grey), with the text under it.
+ */
+function drawWatermark(
+  context: CanvasRenderingContext2D,
+  watermark: ReceiptWatermark,
+  logo: HTMLImageElement | null,
+  height: number,
+) {
+  context.save()
+  context.globalAlpha = WATERMARK_OPACITY
+  context.font = font(WATERMARK_TEXT_SIZE, 700)
+  const lineHeight = Math.round(WATERMARK_TEXT_SIZE * 1.15)
+  const lines = watermark.text ? wrapText(context, watermark.text, INNER).slice(0, 2) : []
+
+  let picture: { width: number; height: number } | null = null
+  if (watermark.kind === 'tallybox') {
+    const scale = WATERMARK_PICTURE / MARK_BOUNDS.width
+    picture = { width: WATERMARK_PICTURE, height: MARK_BOUNDS.height * scale }
+  } else if (logo) {
+    const ratio = Math.min(WATERMARK_PICTURE / logo.width, WATERMARK_PICTURE / logo.height)
+    picture = { width: logo.width * ratio, height: logo.height * ratio }
+  }
+
+  const gap = picture && lines.length > 0 ? 12 : 0
+  const total = (picture?.height ?? 0) + gap + lines.length * lineHeight
+  let y = (height - total) / 2
+
+  if (picture) {
+    const x = (WIDTH - picture.width) / 2
+    if (watermark.kind === 'tallybox') {
+      context.save()
+      context.translate(x, y)
+      context.scale(picture.width / MARK_BOUNDS.width, picture.width / MARK_BOUNDS.width)
+      context.translate(-MARK_BOUNDS.x, -MARK_BOUNDS.y)
+      context.strokeStyle = INK
+      context.lineCap = 'round'
+      context.lineJoin = 'round'
+      for (const path of Object.values(MARK_PATHS)) {
+        context.lineWidth = path.width
+        context.stroke(new Path2D(path.d))
+      }
+      context.restore()
+    } else if (logo) {
+      // Grey, so a colourful logo stays as quiet as the Tallybox mark.
+      context.filter = 'grayscale(1)'
+      context.drawImage(logo, x, y, picture.width, picture.height)
+      context.filter = 'none'
+    }
+    y += picture.height + gap
+  }
+
+  context.fillStyle = INK
+  context.textAlign = 'center'
+  for (const line of lines) {
+    context.fillText(line, WIDTH / 2, y)
+    y += lineHeight
+  }
+  context.restore()
+}
+
 /** Draws the receipt as a picture, the same one used for the PNG and the PDF. */
 export async function drawReceipt(receipt: ReceiptData): Promise<HTMLCanvasElement> {
   await fontsReady()
   const logo = receipt.logoUrl ? await loadImage(receipt.logoUrl) : null
+  const watermark = receipt.watermark
+  const watermarkLogo =
+    watermark?.kind === 'custom' && watermark.logoUrl
+      ? watermark.logoUrl === receipt.logoUrl
+        ? logo
+        : await loadImage(watermark.logoUrl)
+      : null
 
   return renderDocument(WIDTH, SCALE, (context, draw) => {
     let y = PAD
+
+    // Behind everything: drawn first, once the receipt's full height is known.
+    if (draw && watermark) {
+      drawWatermark(context, watermark, watermarkLogo, context.canvas.height / SCALE)
+    }
 
     const text = (
       value: string,
