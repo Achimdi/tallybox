@@ -1,0 +1,90 @@
+name: Production backup
+
+# A weekly backup of the production database. Supabase's free plan keeps none.
+#
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   PROD_DB_URL        tallybox-prod's Session pooler connection string, with
+#                      the database password in it
+#   BACKUP_PASSPHRASE  a long passphrase, kept only in the developer's password
+#                      manager; it is needed to open any backup
+#
+# The backup is encrypted with the passphrase before it leaves this machine,
+# so the stored file is unreadable without it, even though this repository is
+# public. Each backup is kept for 90 days. The log shows table names and row
+# counts only, never data. Logo files (Storage) are not included; owners can
+# upload them again.
+
+on:
+  schedule:
+    - cron: '41 2 * * 0' # Sundays at 02:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Back up, encrypt and store
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Never in a copy of this repository.
+    if: github.repository == 'Achimdi/tallybox'
+    env:
+      SUPABASE_CLI: supabase@3.1.0
+    steps:
+      - name: Check the secrets are set
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$PROD_DB_URL" ]; then
+            echo "::error::The PROD_DB_URL secret is not set."; exit 1
+          fi
+          if [ "${#BACKUP_PASSPHRASE}" -lt 16 ]; then
+            echo "::error::The BACKUP_PASSPHRASE secret is missing or shorter than 16 characters."; exit 1
+          fi
+
+      - name: Dump roles, structure and data (Supabase's documented commands)
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          mkdir dump
+          npx --yes "$SUPABASE_CLI" db dump --remote="$PROD_DB_URL" -f dump/roles.sql --role-only
+          npx --yes "$SUPABASE_CLI" db dump --remote="$PROD_DB_URL" -f dump/schema.sql
+          npx --yes "$SUPABASE_CLI" db dump --remote="$PROD_DB_URL" -f dump/data.sql \
+            --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
+          npx --yes "$SUPABASE_CLI" db dump --remote="$PROD_DB_URL" -f dump/migrations.sql \
+            --use-copy --data-only --schema supabase_migrations
+
+      - name: List what is in it (table names and row counts only)
+        run: |
+          for file in dump/*.sql; do
+            test -s "$file" || { echo "::error::$file is empty"; exit 1; }
+          done
+          awk '/^COPY / { table = $2; rows = 0; next }
+               /^\\\.$/ { if (table != "") print table ": " rows " rows"; table = ""; next }
+               table != "" { rows++ }' dump/data.sql dump/migrations.sql | sort
+          echo "Sizes:"; du -h dump/*.sql
+
+      - name: Encrypt with the passphrase
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          name="tallybox-prod-$(date -u +%Y-%m-%d-%H%M)"
+          tar -czf - -C dump . | gpg --batch --yes --pinentry-mode loopback --symmetric \
+            --cipher-algo AES256 --passphrase-fd 3 --output "$name.tar.gz.gpg" 3<<< "$BACKUP_PASSPHRASE"
+          rm -rf dump
+          echo "BACKUP_NAME=$name" >> "$GITHUB_ENV"
+          ls -l "$name.tar.gz.gpg"
+
+      - name: Store for 90 days
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.BACKUP_NAME }}
+          path: ${{ env.BACKUP_NAME }}.tar.gz.gpg
+          retention-days: 90
+          if-no-files-found: error

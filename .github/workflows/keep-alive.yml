@@ -1,0 +1,38 @@
+name: Keep alive
+
+# Supabase pauses a free project after a week with too little database
+# activity, and the live site stops working until it is restored by hand. One
+# small request a day to production's public business-code check (which asks
+# the database a question) keeps it awake. It needs no keys: that function is
+# public by design.
+#
+# Not needed once tallybox-prod is on a paid plan (paid projects never pause).
+# GitHub switches scheduled workflows off in a public repository after 60 days
+# with no commits; turn it back on from the Actions tab if that happens.
+
+on:
+  schedule:
+    - cron: '23 7 * * *' # every day at 07:23 UTC (off the hour, when runs are less delayed)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ask production's database a small question
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check a business code
+        run: |
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 30 --retry 3 --retry-delay 20 --retry-all-errors \
+            -X POST -H 'content-type: application/json' \
+            -d '{"businessCode":"keep-alive-check"}' \
+            https://qtlzzfyevzhsbdcwubka.supabase.co/functions/v1/check-business-code)
+          echo "Production answered with HTTP $status"
+          if [ "$status" != "200" ]; then
+            echo "::error::Production did not answer normally (HTTP $status). If the project is paused, restore it in the Supabase dashboard."
+            exit 1
+          fi
