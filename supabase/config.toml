@@ -446,5 +446,5 @@ verify_jwt = false
 project_id = "qtlzzfyevzhsbdcwubka"
 
 [remotes.production.auth]
-site_url = "https://tallybox.foodss.workers.dev"
-additional_redirect_urls = ["https://tallybox.foodss.workers.dev"]
+site_url = "https://tallybox.pages.dev"
+additional_redirect_urls = ["https://tallybox.pages.dev"]

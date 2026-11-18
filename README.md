@@ -62,13 +62,12 @@ web/                 The React app
   public/_headers    Security and caching headers
   e2e/               End-to-end tests
 supabase/            Migrations, Edge Functions, database and function tests
-wrangler.jsonc       What Cloudflare publishes (web/dist, as a single-page app)
 .github/workflows/   CI
 ```
 
 ## Deploying
 
-Cloudflare builds the repository on every push to `main` (`npm run build`, then `npx wrangler deploy`) and serves `web/dist` as static files. The app's settings are build variables in Cloudflare (`VITE_DATA_SOURCE`, `VITE_RELEASE`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_TURNSTILE_SITE_KEY`; all public). A build with `VITE_RELEASE=client` refuses to start on demo data.
+Cloudflare Pages builds the repository on every push to `main` (build command `npm run build`, output folder `web/dist`) and serves the result as static files at https://tallybox.pages.dev. Any address that isn't a file gets `index.html`, and the app's router takes over. The app's settings are Production environment variables in the Pages project (`VITE_DATA_SOURCE`, `VITE_RELEASE`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_TURNSTILE_SITE_KEY`; all public). Changing them takes effect on the next build. A build with `VITE_RELEASE=client` refuses to start on demo data.
 
 Database changes ship as versioned migrations in `supabase/migrations`, applied to a development project first and to production after a check.
 
