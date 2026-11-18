@@ -75,7 +75,7 @@ const FEATURES: readonly { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: Boxes,
     title: 'Shared supplies',
-    text: 'Count stock by packaging: three drinks that share one stock of bottles are all counted correctly.',
+    text: 'Link items to a stock they share, like packaging or an ingredient. Every sale takes its share automatically.',
   },
   {
     icon: Smartphone,
@@ -317,12 +317,12 @@ export default function LandingPage() {
               <Spotlight
                 reverse
                 eyebrow="Shared supplies"
-                title="Count by the bottle, not just the drink"
-                text="If your drinks share the same bottles, Tallybox counts the bottles. Sell 10 Coke, 10 Fanta and 10 apple juice, and 30 bottles come off one shared stock. Items can count their own stock, shared supplies, both, or nothing at all."
+                title="Many items, one shared stock"
+                text="Some of what you sell draws on the same stock: the same packaging, ingredient or material. Link any item to a shared supply, say how much each sale uses, and every sale takes its share automatically. An item can count its own stock, a shared supply, both, or nothing at all."
                 points={[
-                  'Several items, one supply',
-                  'Clear warnings before you run out',
-                  'Voids put supplies back',
+                  'Link any item to one or more supplies',
+                  'Each sale takes its share automatically',
+                  'Warnings before a supply runs out',
                 ]}
                 visual={<SuppliesPreview className="w-full max-w-sm" />}
               />

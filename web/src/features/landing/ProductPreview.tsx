@@ -1,4 +1,11 @@
-import { ArrowDownRight, ArrowUpRight, CircleCheck, TriangleAlert } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowDownRight,
+  ArrowUpRight,
+  CircleCheck,
+  Package,
+  TriangleAlert,
+} from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 /**
@@ -154,32 +161,42 @@ export function SalesCard({ className }: { className?: string }) {
   )
 }
 
-/** Shared supplies: three drinks drawing on one stock of bottles. */
+/** Shared supplies: different items drawing on one shared stock, each by its own amount. */
 export function SuppliesPreview({ className }: { className?: string }) {
-  const drinks = [
-    { name: 'Coke', sold: 10 },
-    { name: 'Fanta', sold: 10 },
-    { name: 'Apple juice', sold: 10 },
+  const items = [
+    { name: 'Item A', sold: 10, uses: 1 },
+    { name: 'Item B', sold: 5, uses: 2 },
+    { name: 'Item C', sold: 10, uses: 1 },
   ]
+  const used = items.reduce((sum, item) => sum + item.sold * item.uses, 0)
   return (
     <div
       role="img"
-      aria-label="Shared supplies: selling 10 Coke, 10 Fanta and 10 apple juice takes 30 bottles from one stock of 1,000, leaving 970."
+      aria-label={`Shared supplies: three items share one supply, each sale using its own amount. Together they take ${used} from a shared stock of 500, leaving ${500 - used}.`}
       className={cn(
-        'flex flex-col gap-4 rounded-card border border-line bg-surface-raised p-5 shadow-raised',
+        'flex flex-col gap-3 rounded-card border border-line bg-surface-raised p-5 shadow-raised',
         className,
       )}
     >
       <div aria-hidden="true" className="grid grid-cols-3 gap-2">
-        {drinks.map((drink) => (
+        {items.map((item) => (
           <div
-            key={drink.name}
+            key={item.name}
             className="flex flex-col items-center gap-1 rounded-control bg-surface-sunken p-3 text-center"
           >
-            <Bottle />
-            <span className="text-caption font-semibold text-ink">{drink.name}</span>
-            <span className="text-[0.65rem] text-ink-muted">{drink.sold} sold</span>
+            <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-primary">
+              <Package className="size-5" />
+            </span>
+            <span className="text-caption font-semibold text-ink">{item.name}</span>
+            <span className="text-[0.65rem] text-ink-muted">
+              {item.sold} sold · uses {item.uses}
+            </span>
           </div>
+        ))}
+      </div>
+      <div aria-hidden="true" className="grid grid-cols-3 text-primary">
+        {items.map((item) => (
+          <ArrowDown key={item.name} className="mx-auto size-4" />
         ))}
       </div>
       <div
@@ -187,29 +204,16 @@ export function SuppliesPreview({ className }: { className?: string }) {
         className="flex items-center justify-between rounded-control border border-dashed border-line-control p-3"
       >
         <span className="flex flex-col">
-          <span className="text-caption text-ink-muted">300 ml bottles</span>
+          <span className="text-caption text-ink-muted">Shared supply</span>
           <span className="text-title font-bold text-ink tabular-nums">
-            1,000 <span className="text-ink-subtle">→</span> 970
+            500 <span className="text-ink-subtle">→</span> {500 - used}
           </span>
         </span>
         <span className="flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-label font-semibold text-primary">
           <ArrowDownRight className="size-4" />
-          30 used
+          {used} used
         </span>
       </div>
     </div>
-  )
-}
-
-function Bottle() {
-  return (
-    <svg viewBox="0 0 24 40" className="h-10 w-6 text-primary" aria-hidden="true">
-      <rect x="9" y="1" width="6" height="5" rx="1.5" className="fill-current opacity-60" />
-      <path
-        d="M9 6h6v4c0 1.5 4 3 4 7v18a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V17c0-4 4-5.5 4-7V6Z"
-        className="fill-current"
-      />
-      <rect x="7" y="20" width="10" height="8" rx="1" className="fill-surface-raised opacity-80" />
-    </svg>
   )
 }
