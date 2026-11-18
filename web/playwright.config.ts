@@ -17,9 +17,17 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: 'on-first-retry',
   },
+  // Chrome (Android phone and desktop), Firefox, and Safari's engine on an
+  // iPhone. Windows Smart App Control can refuse to load a freshly downloaded
+  // WebKit, so the iPhone run is on in CI (Linux) and locally only on request:
+  // E2E_WEBKIT=1 npm run test:e2e
   projects: [
     { name: 'phone', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    ...(isCI || process.env.E2E_WEBKIT
+      ? [{ name: 'iphone', use: { ...devices['iPhone 14'] } }]
+      : []),
   ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
