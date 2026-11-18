@@ -35,7 +35,6 @@ Thumbs.db
 
 # Local notes, never committed.
 docs/
-CLAUDE.md
 
 # Downloaded production backups: real clients' data, never committed.
 backups/
